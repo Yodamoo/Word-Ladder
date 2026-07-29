@@ -186,6 +186,15 @@ main { flex: 1; padding-bottom: 24px; }
 }
 .rung.is-latest .tile { background: var(--paper); }
 
+.tile.is-hint-letter {
+  box-shadow: 0 0 0 2px var(--accent);
+  animation: hint-pulse 1.4s ease-in-out infinite;
+}
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--accent); }
+  50% { box-shadow: 0 0 0 4px var(--accent); }
+}
+
 .rung-tag {
   font-size: 12px;
   color: var(--text-lo);
@@ -230,6 +239,27 @@ button {
 }
 #submitBtn:hover { background: #d99b52; }
 #submitBtn:active { transform: scale(0.98); }
+
+.hint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.hint-btn {
+  height: 36px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--rail);
+  color: var(--text-lo);
+  font-size: 13px;
+}
+.hint-btn:hover:not(:disabled) { border-color: var(--text-lo); color: var(--text-hi); }
+.hint-btn:disabled { opacity: 0.5; cursor: default; }
+.hint-count {
+  font-size: 12px;
+  color: var(--text-lo);
+}
 
 .feedback {
   min-height: 18px;

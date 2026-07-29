@@ -65,6 +65,11 @@
       <button type="submit" id="submitBtn">Climb</button>
     </form>
 
+    <div class="hint-row">
+      <button type="button" class="hint-btn" id="hintBtn">🎬 Watch an ad for a hint</button>
+      <span class="hint-count" id="hintCountLabel"></span>
+    </div>
+
     <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
 
     <div class="win-card" id="winCard" hidden>
@@ -72,7 +77,6 @@
       <p class="win-detail" id="winDetail"></p>
       <div class="win-actions">
         <button id="shareBtn">Share result</button>
-        <button id="adFillBtn" class="ghost">Watch a hint ad (demo)</button>
       </div>
     </div>
   </main>
@@ -81,6 +85,13 @@
     <span id="streakLabel">Streak: 0</span>
   </footer>
 
+</div>
+
+<div class="modal-backdrop" id="adBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adTitle">
+    <p class="win-title" id="adTitle">Ad playing…</p>
+    <p class="help-text" id="adCountdownText">Hint in 3…</p>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="helpBackdrop" hidden>

@@ -48,6 +48,37 @@ function bfsDistances(start) {
   return dist;
 }
 
+// Hint: the next word along a shortest path from `fromWord` to `goal`,
+// avoiding words already used in the chain (so it can't suggest a loop).
+// Recomputed from the player's current position rather than the original
+// puzzle path, so it stays valid even after detours.
+function nextHintWord(fromWord, goal, usedWords) {
+  if (fromWord === goal) return null;
+  const blocked = new Set(usedWords);
+  blocked.delete(goal);
+
+  const dist = new Map([[fromWord, 0]]);
+  const prev = new Map();
+  const queue = [fromWord];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    for (const n of neighbors(cur)) {
+      if (blocked.has(n) || dist.has(n)) continue;
+      dist.set(n, dist.get(cur) + 1);
+      prev.set(n, cur);
+      queue.push(n);
+    }
+  }
+  if (!dist.has(goal)) return null;
+
+  let cur = goal;
+  const path = [cur];
+  while (cur !== fromWord) { cur = prev.get(cur); path.push(cur); }
+  path.reverse();
+  return path[1];
+}
+
 // --- Seeded RNG (mulberry32) so the daily puzzle is identical for everyone
 // who loads the page on the same day, with no server required.
 function mulberry32(seed) {
@@ -123,6 +154,8 @@ let daily = dailyPuzzle();
 let practice = null; // { start, end, par }
 let chain = [];
 let won = false;
+let hintCount = 0;
+let hintPosition = null; // index of the letter to change next, or null
 
 const el = {
   ladder: document.getElementById("ladder"),
@@ -135,7 +168,10 @@ const el = {
   parLabel: document.getElementById("parLabel"),
   streakLabel: document.getElementById("streakLabel"),
   shareBtn: document.getElementById("shareBtn"),
-  adFillBtn: document.getElementById("adFillBtn"),
+  hintBtn: document.getElementById("hintBtn"),
+  hintCountLabel: document.getElementById("hintCountLabel"),
+  adBackdrop: document.getElementById("adBackdrop"),
+  adCountdownText: document.getElementById("adCountdownText"),
   helpBtn: document.getElementById("helpBtn"),
   helpBackdrop: document.getElementById("helpBackdrop"),
   closeHelp: document.getElementById("closeHelp"),
@@ -160,6 +196,8 @@ function storageKey() {
 function loadProgress() {
   chain = [currentPuzzle().start];
   won = false;
+  hintCount = 0;
+  hintPosition = null;
   try {
     const raw = localStorage.getItem(storageKey());
     if (!raw) return;
@@ -167,6 +205,7 @@ function loadProgress() {
     if (saved.chain && saved.chain[0] === currentPuzzle().start) {
       chain = saved.chain;
       won = saved.won;
+      hintCount = saved.hintCount || 0;
     }
   } catch (e) { /* ignore corrupt storage */ }
 }
@@ -186,8 +225,8 @@ function loadStoredPracticePuzzle() {
 function saveProgress() {
   try {
     const payload = mode === "practice"
-      ? { puzzle: practice, chain, won }
-      : { chain, won };
+      ? { puzzle: practice, chain, won, hintCount }
+      : { chain, won, hintCount };
     localStorage.setItem(storageKey(), JSON.stringify(payload));
   } catch (e) { /* storage unavailable, fine */ }
 }
@@ -222,6 +261,11 @@ function render() {
   el.parLabel.textContent = "Par " + PAR;
   el.streakLabel.textContent = "Streak: " + getStreak();
 
+  el.hintCountLabel.textContent = hintCount > 0
+    ? hintCount + " hint" + (hintCount === 1 ? "" : "s") + " used"
+    : "";
+  el.hintBtn.disabled = won;
+
   el.ladder.innerHTML = "";
 
   chain.forEach((word, i) => {
@@ -229,14 +273,16 @@ function render() {
     row.className = "rung";
     if (i === 0) row.classList.add("is-start");
     if (word === GOAL) row.classList.add("is-solved");
-    if (i === chain.length - 1 && word !== GOAL) row.classList.add("is-latest");
+    const isLatest = i === chain.length - 1 && word !== GOAL;
+    if (isLatest) row.classList.add("is-latest");
 
-    for (const ch of word) {
+    word.split("").forEach((ch, ti) => {
       const tile = document.createElement("span");
       tile.className = "tile";
+      if (isLatest && !won && hintPosition === ti) tile.classList.add("is-hint-letter");
       tile.textContent = ch;
       row.appendChild(tile);
-    }
+    });
     const tag = document.createElement("span");
     tag.className = "rung-tag";
     tag.textContent = i === 0 ? "start" : (word === GOAL ? "goal reached" : "");
@@ -267,8 +313,9 @@ function render() {
   if (won) {
     el.winCard.hidden = false;
     const steps = chain.length - 1;
+    const hintPart = hintCount > 0 ? " · " + hintCount + " hint" + (hintCount === 1 ? "" : "s") : "";
     el.winDetail.textContent = steps + " step" + (steps === 1 ? "" : "s") +
-      " · par " + PAR + (steps <= PAR ? " · under par" : "");
+      " · par " + PAR + (steps <= PAR ? " · under par" : "") + hintPart;
   } else {
     el.winCard.hidden = true;
   }
@@ -312,6 +359,7 @@ el.form.addEventListener("submit", (e) => {
   chain.push(guess);
   el.input.value = "";
   setFeedback("");
+  hintPosition = null; // stale now that the word it pointed at is behind us
 
   if (guess === currentPuzzle().end) {
     won = true;
@@ -327,7 +375,8 @@ el.shareBtn.addEventListener("click", () => {
   const diff = steps - puzzle.par;
   const resultTag = diff <= 0 ? "🟢" : diff === 1 ? "🟡" : "🟠";
   const label = mode === "daily" ? "Daily #" + (daily.idx + 1) : "Practice (" + DIFFICULTIES[difficulty].label + ")";
-  const text = `Rungs ${label} ${resultTag} ${steps}/${puzzle.par} steps\n${puzzle.start} → ${puzzle.end}`;
+  const hintPart = hintCount > 0 ? ` · ${hintCount} hint${hintCount === 1 ? "" : "s"}` : "";
+  const text = `Rungs ${label} ${resultTag} ${steps}/${puzzle.par} steps${hintPart}\n${puzzle.start} → ${puzzle.end}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => setFeedback("Result copied."));
   } else {
@@ -335,8 +384,46 @@ el.shareBtn.addEventListener("click", () => {
   }
 });
 
-el.adFillBtn.addEventListener("click", () => {
-  setFeedback("Demo only — in the real app this plays a short rewarded video, then reveals one hint letter.");
+// Isolated so a real rewarded-ad SDK can replace the countdown later without
+// touching the hint logic that calls it.
+function showRewardedAd(onComplete) {
+  let secs = 3;
+  el.adCountdownText.textContent = "Hint in " + secs + "…";
+  el.adBackdrop.hidden = false;
+  const timer = setInterval(() => {
+    secs--;
+    if (secs <= 0) {
+      clearInterval(timer);
+      el.adBackdrop.hidden = true;
+      onComplete();
+    } else {
+      el.adCountdownText.textContent = "Hint in " + secs + "…";
+    }
+  }, 1000);
+}
+
+el.hintBtn.addEventListener("click", () => {
+  if (won) return;
+  el.hintBtn.disabled = true;
+  showRewardedAd(() => {
+    const puzzle = currentPuzzle();
+    const last = chain[chain.length - 1];
+    const next = nextHintWord(last, puzzle.end, chain);
+    if (!next) {
+      setFeedback("No hint available from here — try backtracking.");
+      el.hintBtn.disabled = won;
+      return;
+    }
+    let idx = -1;
+    for (let i = 0; i < last.length; i++) {
+      if (last[i] !== next[i]) { idx = i; break; }
+    }
+    hintPosition = idx;
+    hintCount++;
+    setFeedback("Hint: look at the highlighted letter.");
+    saveProgress();
+    render();
+  });
 });
 
 el.helpBtn.addEventListener("click", () => { el.helpBackdrop.hidden = false; });
