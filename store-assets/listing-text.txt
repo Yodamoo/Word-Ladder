@@ -1,0 +1,19 @@
+SHORT DESCRIPTION (max 80 chars) — currently 75:
+A daily word ladder puzzle — change one letter at a time to reach the goal.
+
+FULL DESCRIPTION (max 4000 chars):
+Rungs is a daily word ladder puzzle: turn a start word into a goal word by changing one letter at a time, with every step along the way a real word.
+
+DAILY CHALLENGE
+Everyone gets the same puzzle each day. Solve it, then compare your steps and hints against the leaderboard to see if you were first to solve it or the fastest.
+
+PRACTICE MODE
+Not feeling competitive? Practice mode gives you unlimited puzzles across three difficulty levels — Easy, Medium, and Hard — based on word length, so you can warm up or challenge yourself any time.
+
+STUCK? WATCH AN AD FOR A HINT
+Get a nudge in the right direction: watching a short ad highlights which letter to change next. It won't hand you the answer, just point you at where to look. (Using a hint on the daily puzzle keeps you off the ranked leaderboard, but you'll still show up as "assisted.")
+
+LEADERBOARD
+Compete for first-to-solve and fastest-time bragging rights on the daily puzzle under your own anonymous name — no account required.
+
+Turn the ladder, one rung at a time.

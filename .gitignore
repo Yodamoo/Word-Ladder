@@ -12,3 +12,6 @@ android/app/src/main/assets/capacitor.config.json
 *.aab
 
 .wrangler/
+
+android/keystore/
+android/keystore.properties
