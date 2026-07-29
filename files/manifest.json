@@ -1,0 +1,16 @@
+{
+  "name": "Rungs — a daily word ladder",
+  "short_name": "Rungs",
+  "description": "Turn the start word into the goal word, one letter at a time. A new shared puzzle every day, plus unlimited practice.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1B1F2A",
+  "theme_color": "#1B1F2A",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
