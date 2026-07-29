@@ -208,6 +208,9 @@ main { flex: 1; padding-bottom: 24px; }
   gap: 8px;
   margin-bottom: 10px;
 }
+.input-row[hidden] {
+  display: none;
+}
 #guessInput {
   flex: 1;
   height: 44px;
@@ -240,11 +243,29 @@ button {
 #submitBtn:hover { background: #d99b52; }
 #submitBtn:active { transform: scale(0.98); }
 
+.play-again-btn {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin-bottom: 10px;
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 500;
+}
+.play-again-btn:hover { background: #d99b52; }
+.play-again-btn:active { transform: scale(0.98); }
+.play-again-btn[hidden] {
+  display: none;
+}
+
 .hint-row {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 10px;
+}
+.hint-row[hidden] {
+  display: none;
 }
 .hint-btn {
   height: 36px;

@@ -169,6 +169,7 @@ const el = {
   streakLabel: document.getElementById("streakLabel"),
   shareBtn: document.getElementById("shareBtn"),
   hintBtn: document.getElementById("hintBtn"),
+  hintRow: document.getElementById("hintRow"),
   hintCountLabel: document.getElementById("hintCountLabel"),
   adBackdrop: document.getElementById("adBackdrop"),
   adCountdownText: document.getElementById("adCountdownText"),
@@ -179,6 +180,7 @@ const el = {
   tabPractice: document.getElementById("tabPractice"),
   difficultyRow: document.getElementById("difficultyRow"),
   newPuzzleBtn: document.getElementById("newPuzzleBtn"),
+  playAgainBtn: document.getElementById("playAgainBtn"),
   diffBtns: Array.from(document.querySelectorAll(".diff-btn")),
 };
 
@@ -307,8 +309,9 @@ function render() {
     el.ladder.appendChild(goalRow);
   }
 
-  el.form.querySelector("input").disabled = won;
-  el.form.querySelector("button").disabled = won;
+  el.form.hidden = won;
+  el.hintRow.hidden = won;
+  el.playAgainBtn.hidden = !won || mode !== "practice";
 
   if (won) {
     el.winCard.hidden = false;
@@ -463,12 +466,15 @@ el.diffBtns.forEach(btn => {
   });
 });
 
-el.newPuzzleBtn.addEventListener("click", () => {
+function newPracticePuzzle() {
   practice = practicePuzzle(difficulty);
   loadProgress();
   setFeedback("");
   render();
-});
+}
+
+el.newPuzzleBtn.addEventListener("click", newPracticePuzzle);
+el.playAgainBtn.addEventListener("click", newPracticePuzzle);
 
 loadProgress();
 render();
