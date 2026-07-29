@@ -3,10 +3,19 @@
 import { COMMON_BY_LENGTH } from "./words-data.js";
 import { dayIndexForNow, canonicalDailyPuzzle, validateChain } from "./game-logic.js";
 
+// The Android app's WebView loads the game from a local origin (not this
+// domain), so its API calls are cross-origin and need CORS allowed —
+// there's no session/cookie auth here to protect, just a public leaderboard.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
@@ -87,6 +96,9 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.pathname.startsWith("/api/") && request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
     if (url.pathname === "/api/leaderboard/submit" && request.method === "POST") {
       return handleSubmit(request, env);
     }

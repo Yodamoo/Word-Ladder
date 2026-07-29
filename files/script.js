@@ -1,5 +1,11 @@
 // script.js — Rungs game engine
 
+// Absolute, not relative: inside the Capacitor app the page loads from a
+// local WebView origin, not the real domain, so a relative "/api/..." would
+// hit the wrong host. The web version is same-origin either way, so this is
+// harmless there too.
+const API_BASE = "https://word-ladder.yodamoo.workers.dev";
+
 const EPOCH = new Date("2026-07-27T00:00:00");
 
 const DIFFICULTIES = {
@@ -423,7 +429,7 @@ function submitDailyScore() {
 }
 
 function sendScore(name, chainArr, hints, elapsedSeconds) {
-  fetch("/api/leaderboard/submit", {
+  fetch(API_BASE + "/api/leaderboard/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ playerId: getPlayerId(), name, chain: chainArr, hints, elapsedSeconds }),
@@ -504,7 +510,7 @@ el.leaderboardBtn.addEventListener("click", async () => {
   p.textContent = "Loading…";
   el.leaderboardBody.appendChild(p);
   try {
-    const res = await fetch("/api/leaderboard/today");
+    const res = await fetch(API_BASE + "/api/leaderboard/today");
     const data = await res.json();
     renderLeaderboard(data);
   } catch (e) {
