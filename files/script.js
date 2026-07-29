@@ -172,6 +172,9 @@ const el = {
   hintRow: document.getElementById("hintRow"),
   hintCountLabel: document.getElementById("hintCountLabel"),
   adBackdrop: document.getElementById("adBackdrop"),
+  hintWarningBackdrop: document.getElementById("hintWarningBackdrop"),
+  hintWarningCancel: document.getElementById("hintWarningCancel"),
+  hintWarningConfirm: document.getElementById("hintWarningConfirm"),
   adCountdownText: document.getElementById("adCountdownText"),
   helpBtn: document.getElementById("helpBtn"),
   helpBackdrop: document.getElementById("helpBackdrop"),
@@ -405,8 +408,7 @@ function showRewardedAd(onComplete) {
   }, 1000);
 }
 
-el.hintBtn.addEventListener("click", () => {
-  if (won) return;
+function startHintFlow() {
   el.hintBtn.disabled = true;
   showRewardedAd(() => {
     const puzzle = currentPuzzle();
@@ -427,6 +429,24 @@ el.hintBtn.addEventListener("click", () => {
     saveProgress();
     render();
   });
+}
+
+el.hintBtn.addEventListener("click", () => {
+  if (won) return;
+  if (mode === "daily") {
+    el.hintWarningBackdrop.hidden = false;
+    return;
+  }
+  startHintFlow();
+});
+
+el.hintWarningCancel.addEventListener("click", () => { el.hintWarningBackdrop.hidden = true; });
+el.hintWarningConfirm.addEventListener("click", () => {
+  el.hintWarningBackdrop.hidden = true;
+  startHintFlow();
+});
+el.hintWarningBackdrop.addEventListener("click", (e) => {
+  if (e.target === el.hintWarningBackdrop) el.hintWarningBackdrop.hidden = true;
 });
 
 el.helpBtn.addEventListener("click", () => { el.helpBackdrop.hidden = false; });
