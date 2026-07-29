@@ -1,5 +1,12 @@
 name = "word-ladder"
+main = "worker/index.js"
 compatibility_date = "2024-09-23"
 
 [assets]
 directory = "./files"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rungs-leaderboard"
+database_id = "64196fc9-2180-4d00-bf8b-0098cb2867e4"

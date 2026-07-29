@@ -23,6 +23,11 @@
     "@capacitor/core": "^8.4.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.4.2"
+    "@capacitor/cli": "^8.4.2",
+    "wrangler": "^4.115.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260722.1": true
   }
 }

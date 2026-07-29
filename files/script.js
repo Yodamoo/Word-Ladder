@@ -156,6 +156,8 @@ let chain = [];
 let won = false;
 let hintCount = 0;
 let hintPosition = null; // index of the letter to change next, or null
+let startedAt = Date.now(); // when the current puzzle attempt began, for daily timing
+let pendingSubmission = null; // { chain, hints, elapsedSeconds } awaiting a player name
 
 const el = {
   ladder: document.getElementById("ladder"),
@@ -185,10 +187,35 @@ const el = {
   newPuzzleBtn: document.getElementById("newPuzzleBtn"),
   playAgainBtn: document.getElementById("playAgainBtn"),
   diffBtns: Array.from(document.querySelectorAll(".diff-btn")),
+  leaderboardBtn: document.getElementById("leaderboardBtn"),
+  leaderboardBackdrop: document.getElementById("leaderboardBackdrop"),
+  leaderboardBody: document.getElementById("leaderboardBody"),
+  closeLeaderboard: document.getElementById("closeLeaderboard"),
+  nameBackdrop: document.getElementById("nameBackdrop"),
+  nameInput: document.getElementById("nameInput"),
+  nameSubmit: document.getElementById("nameSubmit"),
+  nameSkip: document.getElementById("nameSkip"),
 };
 
 function currentPuzzle() {
   return mode === "daily" ? daily.puzzle : practice;
+}
+
+function getPlayerId() {
+  let id = localStorage.getItem("rungs:playerId");
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)));
+    localStorage.setItem("rungs:playerId", id);
+  }
+  return id;
+}
+
+function getPlayerName() {
+  return localStorage.getItem("rungs:playerName");
+}
+
+function setPlayerName(name) {
+  localStorage.setItem("rungs:playerName", name);
 }
 
 function storageKey() {
@@ -203,14 +230,18 @@ function loadProgress() {
   won = false;
   hintCount = 0;
   hintPosition = null;
+  startedAt = Date.now();
   try {
     const raw = localStorage.getItem(storageKey());
-    if (!raw) return;
+    if (!raw) { saveProgress(); return; }
     const saved = JSON.parse(raw);
     if (saved.chain && saved.chain[0] === currentPuzzle().start) {
       chain = saved.chain;
       won = saved.won;
       hintCount = saved.hintCount || 0;
+      startedAt = saved.startedAt || startedAt;
+    } else {
+      saveProgress();
     }
   } catch (e) { /* ignore corrupt storage */ }
 }
@@ -230,8 +261,8 @@ function loadStoredPracticePuzzle() {
 function saveProgress() {
   try {
     const payload = mode === "practice"
-      ? { puzzle: practice, chain, won, hintCount }
-      : { chain, won, hintCount };
+      ? { puzzle: practice, chain, won, hintCount, startedAt }
+      : { chain, won, hintCount, startedAt };
     localStorage.setItem(storageKey(), JSON.stringify(payload));
   } catch (e) { /* storage unavailable, fine */ }
 }
@@ -322,6 +353,7 @@ function render() {
     const hintPart = hintCount > 0 ? " · " + hintCount + " hint" + (hintCount === 1 ? "" : "s") : "";
     el.winDetail.textContent = steps + " step" + (steps === 1 ? "" : "s") +
       " · par " + PAR + (steps <= PAR ? " · under par" : "") + hintPart;
+    el.leaderboardBtn.hidden = mode !== "daily";
   } else {
     el.winCard.hidden = true;
   }
@@ -369,10 +401,123 @@ el.form.addEventListener("submit", (e) => {
 
   if (guess === currentPuzzle().end) {
     won = true;
-    if (mode === "daily") bumpStreak();
+    if (mode === "daily") {
+      bumpStreak();
+      submitDailyScore();
+    }
   }
   saveProgress();
   render();
+});
+
+function submitDailyScore() {
+  const elapsedSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+  const name = getPlayerName();
+  if (name === null) {
+    pendingSubmission = { chain: chain.slice(), hints: hintCount, elapsedSeconds };
+    el.nameInput.value = "";
+    el.nameBackdrop.hidden = false;
+    return;
+  }
+  sendScore(name, chain.slice(), hintCount, elapsedSeconds);
+}
+
+function sendScore(name, chainArr, hints, elapsedSeconds) {
+  fetch("/api/leaderboard/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerId: getPlayerId(), name, chain: chainArr, hints, elapsedSeconds }),
+  }).catch(() => { /* best-effort; a failed submit shouldn't break the win screen */ });
+}
+
+function resolvePlayerName(rawInput) {
+  const trimmed = (rawInput || "").trim().slice(0, 24);
+  return trimmed || "Anonymous";
+}
+
+el.nameSubmit.addEventListener("click", () => {
+  const name = resolvePlayerName(el.nameInput.value);
+  setPlayerName(name);
+  el.nameBackdrop.hidden = true;
+  if (pendingSubmission) {
+    sendScore(name, pendingSubmission.chain, pendingSubmission.hints, pendingSubmission.elapsedSeconds);
+    pendingSubmission = null;
+  }
+});
+el.nameSkip.addEventListener("click", () => {
+  const name = "Anonymous";
+  setPlayerName(name);
+  el.nameBackdrop.hidden = true;
+  if (pendingSubmission) {
+    sendScore(name, pendingSubmission.chain, pendingSubmission.hints, pendingSubmission.elapsedSeconds);
+    pendingSubmission = null;
+  }
+});
+
+function formatTime(s) {
+  const m = Math.floor(s / 60), r = Math.round(s % 60);
+  return m + ":" + String(r).padStart(2, "0");
+}
+
+function renderLeaderboard(data) {
+  el.leaderboardBody.innerHTML = "";
+  const addLine = (text) => {
+    const p = document.createElement("p");
+    p.className = "help-text";
+    p.textContent = text;
+    el.leaderboardBody.appendChild(p);
+  };
+  addLine(data.first ? "First to solve: " + data.first.name : "Nobody's solved it yet today.");
+  addLine("Fastest (no hints)");
+  const list = document.createElement("ol");
+  list.className = "lb-list";
+  if (!data.ranked || data.ranked.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No qualifying times yet.";
+    list.appendChild(li);
+  } else {
+    data.ranked.forEach(r => {
+      const li = document.createElement("li");
+      li.textContent = r.name + " — " + formatTime(r.timeSeconds);
+      list.appendChild(li);
+    });
+  }
+  el.leaderboardBody.appendChild(list);
+  if (data.assisted && data.assisted.length) {
+    addLine("Assisted (used a hint)");
+    const alist = document.createElement("ul");
+    alist.className = "lb-list";
+    data.assisted.forEach(r => {
+      const li = document.createElement("li");
+      li.textContent = r.name + " — " + formatTime(r.timeSeconds);
+      alist.appendChild(li);
+    });
+    el.leaderboardBody.appendChild(alist);
+  }
+}
+
+el.leaderboardBtn.addEventListener("click", async () => {
+  el.leaderboardBackdrop.hidden = false;
+  el.leaderboardBody.innerHTML = "";
+  const p = document.createElement("p");
+  p.className = "help-text";
+  p.textContent = "Loading…";
+  el.leaderboardBody.appendChild(p);
+  try {
+    const res = await fetch("/api/leaderboard/today");
+    const data = await res.json();
+    renderLeaderboard(data);
+  } catch (e) {
+    el.leaderboardBody.innerHTML = "";
+    const err = document.createElement("p");
+    err.className = "help-text";
+    err.textContent = "Couldn't load the leaderboard right now.";
+    el.leaderboardBody.appendChild(err);
+  }
+});
+el.closeLeaderboard.addEventListener("click", () => { el.leaderboardBackdrop.hidden = true; });
+el.leaderboardBackdrop.addEventListener("click", (e) => {
+  if (e.target === el.leaderboardBackdrop) el.leaderboardBackdrop.hidden = true;
 });
 
 el.shareBtn.addEventListener("click", () => {

@@ -79,6 +79,7 @@
       <p class="win-detail" id="winDetail"></p>
       <div class="win-actions">
         <button id="shareBtn">Share result</button>
+        <button id="leaderboardBtn" class="ghost" hidden>🏆 Leaderboard</button>
       </div>
     </div>
   </main>
@@ -104,6 +105,26 @@
       <button id="hintWarningConfirm">Use hint anyway</button>
       <button id="hintWarningCancel" class="ghost">Cancel</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="nameBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
+    <p class="win-title" id="nameTitle">Name for the leaderboard?</p>
+    <p class="help-text">This shows next to your daily results. You can change it any time.</p>
+    <input type="text" id="nameInput" class="modal-input" maxlength="24" placeholder="Anonymous" />
+    <div class="win-actions">
+      <button id="nameSubmit">Save</button>
+      <button id="nameSkip" class="ghost">Skip</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="leaderboardBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardTitle">
+    <p class="win-title" id="leaderboardTitle">Today's leaderboard</p>
+    <div id="leaderboardBody"></div>
+    <button id="closeLeaderboard">Close</button>
   </div>
 </div>
 
