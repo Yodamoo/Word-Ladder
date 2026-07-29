@@ -351,7 +351,7 @@ el.form.addEventListener("submit", (e) => {
     return;
   }
   if (!WORDS.has(guess)) {
-    setFeedback(guess + " isn't in the word list yet.");
+    setFeedback(guess + " isn't a valid word.");
     return;
   }
   if (chain.includes(guess)) {
