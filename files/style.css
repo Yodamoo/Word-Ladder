@@ -67,6 +67,51 @@ body:focus-visible, button:focus-visible, input:focus-visible {
 
 main { flex: 1; padding-bottom: 24px; }
 
+/* --- Mode tabs & difficulty --- */
+.mode-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--ink-raised);
+}
+.tab-btn {
+  background: transparent;
+  color: var(--text-lo);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 4px 10px;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+.tab-btn[aria-selected="true"] {
+  color: var(--text-hi);
+  border-bottom-color: var(--accent);
+}
+
+.difficulty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.diff-btn {
+  height: 32px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--rail);
+  color: var(--text-lo);
+  font-size: 13px;
+}
+.diff-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.difficulty-row .icon-btn {
+  margin-left: auto;
+}
+
 .puzzle-meta {
   font-size: 13px;
   color: var(--text-lo);

@@ -24,6 +24,18 @@
   </header>
 
   <main>
+    <div class="mode-tabs" role="tablist">
+      <button class="tab-btn" id="tabDaily" role="tab" aria-selected="true">Daily</button>
+      <button class="tab-btn" id="tabPractice" role="tab" aria-selected="false">Practice</button>
+    </div>
+
+    <div class="difficulty-row" id="difficultyRow" hidden>
+      <button class="diff-btn" data-diff="easy">Easy</button>
+      <button class="diff-btn" data-diff="medium">Medium</button>
+      <button class="diff-btn" data-diff="hard">Hard</button>
+      <button class="icon-btn" id="newPuzzleBtn" aria-label="New puzzle" title="New puzzle">↻</button>
+    </div>
+
     <div class="puzzle-meta">
       <span id="puzzleLabel">Puzzle #1</span>
       <span class="dot" aria-hidden="true">·</span>
