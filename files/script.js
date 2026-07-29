@@ -154,6 +154,9 @@ function storageKey() {
   return mode === "daily" ? "rungs:daily:" + daily.idx : "rungs:practice";
 }
 
+// Restores chain/won progress for whichever puzzle is already current. Does
+// NOT touch `practice` itself — callers that want a specific (e.g. freshly
+// generated) puzzle must set it before calling this.
 function loadProgress() {
   chain = [currentPuzzle().start];
   won = false;
@@ -161,16 +164,23 @@ function loadProgress() {
     const raw = localStorage.getItem(storageKey());
     if (!raw) return;
     const saved = JSON.parse(raw);
-    if (mode === "practice") {
-      if (saved.puzzle && saved.puzzle.start && saved.puzzle.end) {
-        practice = saved.puzzle;
-      }
-    }
     if (saved.chain && saved.chain[0] === currentPuzzle().start) {
       chain = saved.chain;
       won = saved.won;
     }
   } catch (e) { /* ignore corrupt storage */ }
+}
+
+// Only used when entering practice mode with no puzzle in memory yet, to
+// resume the last saved practice puzzle across a tab switch or reload.
+function loadStoredPracticePuzzle() {
+  try {
+    const raw = localStorage.getItem("rungs:practice");
+    if (!raw) return null;
+    const saved = JSON.parse(raw);
+    if (saved.puzzle && saved.puzzle.start && saved.puzzle.end) return saved.puzzle;
+  } catch (e) { /* ignore corrupt storage */ }
+  return null;
 }
 
 function saveProgress() {
@@ -339,7 +349,7 @@ function switchMode(next) {
   if (mode === next) return;
   mode = next;
   if (mode === "practice" && !practice) {
-    practice = practicePuzzle(difficulty);
+    practice = loadStoredPracticePuzzle() || practicePuzzle(difficulty);
   }
   loadProgress();
   setFeedback("");

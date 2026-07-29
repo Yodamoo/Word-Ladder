@@ -111,6 +111,9 @@ main { flex: 1; padding-bottom: 24px; }
 .difficulty-row .icon-btn {
   margin-left: auto;
 }
+.difficulty-row[hidden] {
+  display: none;
+}
 
 .puzzle-meta {
   font-size: 13px;
