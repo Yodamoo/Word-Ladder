@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Rungs — a daily word ladder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 2v20M18 2v20M6 8h12M6 16h12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </span>
+      <span class="brand-name">Rungs</span>
+    </div>
+    <button class="icon-btn" id="helpBtn" aria-label="How to play">?</button>
+  </header>
+
+  <main>
+    <div class="puzzle-meta">
+      <span id="puzzleLabel">Puzzle #1</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <span id="parLabel">Par 3</span>
+    </div>
+
+    <div class="ladder" id="ladder"></div>
+
+    <form class="input-row" id="guessForm" autocomplete="off">
+      <input
+        id="guessInput"
+        type="text"
+        inputmode="latin"
+        autocapitalize="characters"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="Next word"
+        aria-label="Type the next word in the ladder"
+      />
+      <button type="submit" id="submitBtn">Climb</button>
+    </form>
+
+    <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+
+    <div class="win-card" id="winCard" hidden>
+      <p class="win-title" id="winTitle">Solved!</p>
+      <p class="win-detail" id="winDetail"></p>
+      <div class="win-actions">
+        <button id="shareBtn">Share result</button>
+        <button id="adFillBtn" class="ghost">Watch a hint ad (demo)</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <span id="streakLabel">Streak: 0</span>
+  </footer>
+
+</div>
+
+<div class="modal-backdrop" id="helpBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <p class="win-title" id="helpTitle">How to play</p>
+    <p class="help-text">Turn the start word into the goal word, one letter at a time. Every step in between has to be a real word. Fewer steps than par gets you the shiny result.</p>
+    <p class="help-text">Example: CAT → COT → COG → DOG</p>
+    <button id="closeHelp">Got it</button>
+  </div>
+</div>
+
+<script src="words.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
