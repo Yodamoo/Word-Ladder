@@ -643,9 +643,38 @@ el.shareBtn.addEventListener("click", () => {
   }
 });
 
-// Isolated so a real rewarded-ad SDK can replace the countdown later without
-// touching the hint logic that calls it.
+// Google's public test Rewarded Ad unit — always serves test creative, safe
+// to ship, never generates real revenue. Swap for the real ad unit ID from
+// the user's AdMob account before a production release.
+const ADMOB_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+
+// window.Capacitor.Plugins is how Capacitor exposes native plugins without a
+// bundler (we ship plain <script> tags, no import/build step) — undefined on
+// the web build, where there's no native ad SDK at all.
+function getAdMobPlugin() {
+  return (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() &&
+    window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) || null;
+}
+
+let adMobReady = false;
+async function ensureAdMobInitialized() {
+  const AdMob = getAdMobPlugin();
+  if (!AdMob || adMobReady) return;
+  try {
+    await AdMob.initialize({});
+    adMobReady = true;
+  } catch (e) { /* leave adMobReady false; each hint attempt just retries initialize-adjacent calls */ }
+}
+
+// Real ad on native (Capacitor AdMob plugin); simulated countdown on the web,
+// since there's no equivalent web ad SDK in scope. Either way, `onComplete`
+// only fires once the hint is actually earned.
 function showRewardedAd(onComplete) {
+  const AdMob = getAdMobPlugin();
+  if (AdMob) {
+    showRealRewardedAd(AdMob, onComplete);
+    return;
+  }
   let secs = 3;
   el.adCountdownText.textContent = "Hint in " + secs + "…";
   el.adBackdrop.hidden = false;
@@ -659,6 +688,47 @@ function showRewardedAd(onComplete) {
       el.adCountdownText.textContent = "Hint in " + secs + "…";
     }
   }, 1000);
+}
+
+async function showRealRewardedAd(AdMob, onComplete) {
+  el.adCountdownText.textContent = "Loading ad…";
+  el.adBackdrop.hidden = false;
+
+  let earned = false;
+  let listeners = [];
+  const cleanup = () => { listeners.forEach(l => l.remove()); listeners = []; };
+  const failClosed = (message) => {
+    cleanup();
+    el.adBackdrop.hidden = true;
+    el.hintBtn.disabled = won;
+    setFeedback(message);
+  };
+
+  try {
+    listeners.push(await AdMob.addListener("onRewardedVideoAdReward", () => { earned = true; }));
+    listeners.push(await AdMob.addListener("onRewardedVideoAdDismissed", () => {
+      cleanup();
+      el.adBackdrop.hidden = true;
+      if (earned) {
+        onComplete();
+      } else {
+        el.hintBtn.disabled = won;
+        setFeedback("Hint not unlocked — the ad wasn't finished.");
+      }
+    }));
+    listeners.push(await AdMob.addListener("onRewardedVideoAdFailedToLoad", () => {
+      failClosed("Couldn't load an ad right now — try again in a moment.");
+    }));
+    listeners.push(await AdMob.addListener("onRewardedVideoAdFailedToShow", () => {
+      failClosed("Couldn't show the ad right now — try again in a moment.");
+    }));
+
+    await ensureAdMobInitialized();
+    await AdMob.prepareRewardVideoAd({ adId: ADMOB_REWARDED_AD_UNIT_ID, isTesting: true });
+    await AdMob.showRewardVideoAd();
+  } catch (e) {
+    failClosed("Couldn't show the ad right now — try again in a moment.");
+  }
 }
 
 function startHintFlow() {
@@ -774,6 +844,7 @@ el.playAgainBtn.addEventListener("click", newPracticePuzzle);
 
 loadProgress();
 render();
+ensureAdMobInitialized();
 
 if (!localStorage.getItem("rungs:seenHelp")) {
   localStorage.setItem("rungs:seenHelp", "1");

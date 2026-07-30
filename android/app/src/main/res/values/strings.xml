@@ -4,4 +4,9 @@
     <string name="title_activity_main">Rungs</string>
     <string name="package_name">com.yodamoo.rungs</string>
     <string name="custom_url_scheme">com.yodamoo.rungs</string>
+
+    <!-- Google's official public test App ID — safe to ship, never shows
+         real ads. Swap for the real AdMob App ID before a production
+         release (see admob_rewarded_ad_unit_id in the JS config too). -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
 </resources>

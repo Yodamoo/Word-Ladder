@@ -1,7 +1,7 @@
 // sw.js — offline cache for Rungs
 // Bump CACHE_NAME whenever a cached asset changes so old clients pick up
 // the new version instead of serving stale files forever.
-const CACHE_NAME = "rungs-cache-v9";
+const CACHE_NAME = "rungs-cache-v10";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
