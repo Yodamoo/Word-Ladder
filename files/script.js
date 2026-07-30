@@ -6,7 +6,11 @@
 // harmless there too.
 const API_BASE = "https://word-ladder.yodamoo.workers.dev";
 
-const EPOCH = new Date("2026-07-27T00:00:00");
+// The "Z" is load-bearing: without it, this parses in the device's local
+// timezone, so day boundaries would roll over at local midnight on the
+// client but at UTC midnight on the server (Workers always run in UTC) —
+// they'd disagree for hours every day for anyone outside UTC.
+const EPOCH = new Date("2026-07-27T00:00:00Z");
 
 const DIFFICULTIES = {
   easy:   { label: "Easy",   lengths: [3, 4],    parRange: [2, 3] },
@@ -100,6 +104,57 @@ function pick(rng, arr) {
   return arr[Math.floor(rng() * arr.length)];
 }
 
+// Fixed Fisher-Yates shuffle (seeded once, not per-day) of the daily word
+// pool, so indexing into it by day number visits every word exactly once
+// before any repeat — about 3.26 years at the current ~1192-word pool,
+// instead of a plain random pick repeating within weeks by chance alone.
+const DAILY_SHUFFLE_SEED = 1337;
+let _dailyStartOrderCache = null;
+function dailyStartOrder() {
+  if (!_dailyStartOrderCache) {
+    const arr = COMMON_BY_LENGTH[DAILY_LENGTHS[0]].slice();
+    const rng = mulberry32(DAILY_SHUFFLE_SEED);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    _dailyStartOrderCache = arr;
+  }
+  return _dailyStartOrderCache;
+}
+
+// Like generatePuzzle, but the start word is fixed (from dailyStartOrder)
+// rather than randomly picked, so the daily challenge never repeats a start
+// word until the whole pool has cycled. Only the goal is chosen via the
+// day-seeded RNG, same as before.
+function generateDailyPuzzle(idx) {
+  const pool = COMMON_BY_LENGTH[DAILY_LENGTHS[0]];
+  const order = dailyStartOrder();
+  const start = order[idx % order.length];
+  const rng = mulberry32(idx + 1);
+  const dist = bfsDistances(start);
+
+  let candidates = pool.filter(w =>
+    w !== start && dist.has(w) && dist.get(w) >= DAILY_PAR_RANGE[0] && dist.get(w) <= DAILY_PAR_RANGE[1]);
+  if (candidates.length === 0) {
+    candidates = [];
+    for (const [w, d] of dist) {
+      if (w !== start && d >= DAILY_PAR_RANGE[0] && d <= DAILY_PAR_RANGE[1]) candidates.push(w);
+    }
+  }
+  if (candidates.length > 0) {
+    const goal = pick(rng, candidates);
+    return { start, end: goal, par: dist.get(goal) };
+  }
+  // Fallback: take whatever's reachable at the greatest distance we found.
+  let bestWord = null, bestDist = 0;
+  for (const [w, d] of dist) {
+    if (w !== start && d > bestDist) { bestDist = d; bestWord = w; }
+  }
+  if (bestWord) return { start, end: bestWord, par: bestDist };
+  return null;
+}
+
 function generatePuzzle(rng, lengths, parRange) {
   let lastDist = null;
   let lastStart = null;
@@ -143,8 +198,7 @@ function dayIndex() {
 
 function dailyPuzzle() {
   const idx = dayIndex();
-  const rng = mulberry32(idx + 1); // +1 so seed 0 isn't degenerate
-  return { idx, puzzle: generatePuzzle(rng, DAILY_LENGTHS, DAILY_PAR_RANGE) };
+  return { idx, puzzle: generateDailyPuzzle(idx) };
 }
 
 function practicePuzzle(difficulty) {
@@ -172,6 +226,7 @@ const el = {
   feedback: document.getElementById("feedback"),
   winCard: document.getElementById("winCard"),
   winDetail: document.getElementById("winDetail"),
+  nextPuzzleNote: document.getElementById("nextPuzzleNote"),
   puzzleLabel: document.getElementById("puzzleLabel"),
   parLabel: document.getElementById("parLabel"),
   streakLabel: document.getElementById("streakLabel"),
@@ -201,6 +256,10 @@ const el = {
   nameInput: document.getElementById("nameInput"),
   nameSubmit: document.getElementById("nameSubmit"),
   nameSkip: document.getElementById("nameSkip"),
+  statsBtn: document.getElementById("statsBtn"),
+  statsBackdrop: document.getElementById("statsBackdrop"),
+  statsBody: document.getElementById("statsBody"),
+  closeStats: document.getElementById("closeStats"),
 };
 
 function currentPuzzle() {
@@ -271,6 +330,26 @@ function saveProgress() {
       : { chain, won, hintCount, startedAt };
     localStorage.setItem(storageKey(), JSON.stringify(payload));
   } catch (e) { /* storage unavailable, fine */ }
+}
+
+function getStats() {
+  try {
+    const s = JSON.parse(localStorage.getItem("rungs:stats"));
+    return {
+      dailyCompleted: (s && s.dailyCompleted) || 0,
+      dailyHints: (s && s.dailyHints) || 0,
+      practiceCompleted: (s && s.practiceCompleted) || 0,
+      practiceHints: (s && s.practiceHints) || 0,
+    };
+  } catch (e) {
+    return { dailyCompleted: 0, dailyHints: 0, practiceCompleted: 0, practiceHints: 0 };
+  }
+}
+
+function bumpStat(key) {
+  const stats = getStats();
+  stats[key] = (stats[key] || 0) + 1;
+  localStorage.setItem("rungs:stats", JSON.stringify(stats));
 }
 
 function getStreak() {
@@ -360,9 +439,28 @@ function render() {
     el.winDetail.textContent = steps + " step" + (steps === 1 ? "" : "s") +
       " · par " + PAR + (steps <= PAR ? " · under par" : "") + hintPart;
     el.leaderboardBtn.hidden = mode !== "daily";
+    if (mode === "daily") {
+      const now = new Date();
+      const nextUtcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+      const hoursLeft = Math.max(1, Math.ceil((nextUtcMidnight - now.getTime()) / 3600000));
+      el.nextPuzzleNote.textContent = "Next puzzle in about " + hoursLeft + "h (midnight UTC)";
+      el.nextPuzzleNote.hidden = false;
+    } else {
+      el.nextPuzzleNote.hidden = true;
+    }
   } else {
     el.winCard.hidden = true;
   }
+}
+
+// Vibration API no-ops silently where unsupported (desktop browsers, iOS
+// Safari), so this is safe to call unconditionally.
+function celebrateWin() {
+  const card = el.winCard;
+  card.classList.remove("is-popping");
+  void card.offsetWidth; // force reflow so the animation restarts every win
+  card.classList.add("is-popping");
+  if (navigator.vibrate) navigator.vibrate([40, 30, 60]);
 }
 
 function diffByOne(a, b) {
@@ -410,10 +508,14 @@ el.form.addEventListener("submit", (e) => {
     if (mode === "daily") {
       bumpStreak();
       submitDailyScore();
+      bumpStat("dailyCompleted");
+    } else {
+      bumpStat("practiceCompleted");
     }
   }
   saveProgress();
   render();
+  if (won) celebrateWin();
 });
 
 function submitDailyScore() {
@@ -576,6 +678,7 @@ function startHintFlow() {
     }
     hintPosition = idx;
     hintCount++;
+    bumpStat(mode === "daily" ? "dailyHints" : "practiceHints");
     setFeedback("Hint: look at the highlighted letter.");
     saveProgress();
     render();
@@ -604,6 +707,28 @@ el.helpBtn.addEventListener("click", () => { el.helpBackdrop.hidden = false; });
 el.closeHelp.addEventListener("click", () => { el.helpBackdrop.hidden = true; });
 el.helpBackdrop.addEventListener("click", (e) => {
   if (e.target === el.helpBackdrop) el.helpBackdrop.hidden = true;
+});
+
+function renderStats() {
+  const s = getStats();
+  el.statsBody.innerHTML = "";
+  [
+    ["Daily puzzles solved", s.dailyCompleted],
+    ["Daily hints used", s.dailyHints],
+    ["Practice puzzles solved", s.practiceCompleted],
+    ["Practice hints used", s.practiceHints],
+  ].forEach(([label, val]) => {
+    const p = document.createElement("p");
+    p.className = "help-text";
+    p.textContent = label + ": " + val;
+    el.statsBody.appendChild(p);
+  });
+}
+
+el.statsBtn.addEventListener("click", () => { renderStats(); el.statsBackdrop.hidden = false; });
+el.closeStats.addEventListener("click", () => { el.statsBackdrop.hidden = true; });
+el.statsBackdrop.addEventListener("click", (e) => {
+  if (e.target === el.statsBackdrop) el.statsBackdrop.hidden = true;
 });
 
 function switchMode(next) {
@@ -649,3 +774,8 @@ el.playAgainBtn.addEventListener("click", newPracticePuzzle);
 
 loadProgress();
 render();
+
+if (!localStorage.getItem("rungs:seenHelp")) {
+  localStorage.setItem("rungs:seenHelp", "1");
+  el.helpBackdrop.hidden = false;
+}

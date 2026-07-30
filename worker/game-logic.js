@@ -4,7 +4,9 @@
 // different "canonical" daily puzzle than players are actually solving.
 import { WORDS } from "./words-data.js";
 
-export const EPOCH = new Date("2026-07-27T00:00:00");
+// Must match files/script.js exactly, including the "Z" (explicit UTC) —
+// see the comment there for why it matters.
+export const EPOCH = new Date("2026-07-27T00:00:00Z");
 export const DAILY_LENGTHS = [5];
 export const DAILY_PAR_RANGE = [3, 5];
 
@@ -60,49 +62,55 @@ function pick(rng, arr) {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-export function generatePuzzle(rng, lengths, parRange, commonByLength) {
-  let lastDist = null;
-  let lastStart = null;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const length = pick(rng, lengths);
-    const pool = commonByLength[length];
-    if (!pool || pool.length === 0) continue;
-    const start = pick(rng, pool);
-    const dist = bfsDistances(start);
-    lastDist = dist; lastStart = start;
-
-    let candidates = pool.filter(w =>
-      w !== start && dist.has(w) && dist.get(w) >= parRange[0] && dist.get(w) <= parRange[1]);
-
-    if (candidates.length === 0) {
-      candidates = [];
-      for (const [w, d] of dist) {
-        if (w !== start && d >= parRange[0] && d <= parRange[1]) candidates.push(w);
-      }
-    }
-    if (candidates.length === 0) continue;
-
-    const goal = pick(rng, candidates);
-    return { start, end: goal, par: dist.get(goal) };
-  }
-  if (lastDist) {
-    let bestWord = null, bestDist = 0;
-    for (const [w, d] of lastDist) {
-      if (w !== lastStart && d > bestDist) { bestDist = d; bestWord = w; }
-    }
-    if (bestWord) return { start: lastStart, end: bestWord, par: bestDist };
-  }
-  return null;
-}
-
 export function dayIndexForNow() {
   const now = new Date();
   return Math.floor((now - EPOCH) / 86400000);
 }
 
+// Must match files/script.js's dailyStartOrder()/generateDailyPuzzle()
+// exactly (same seed, same shuffle, same goal-selection logic) — this is
+// what lets the server independently recompute "today's puzzle" and
+// validate a submitted chain against it.
+const DAILY_SHUFFLE_SEED = 1337;
+let _dailyStartOrderCache = null;
+function dailyStartOrder(commonByLength) {
+  if (!_dailyStartOrderCache) {
+    const arr = commonByLength[DAILY_LENGTHS[0]].slice();
+    const rng = mulberry32(DAILY_SHUFFLE_SEED);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    _dailyStartOrderCache = arr;
+  }
+  return _dailyStartOrderCache;
+}
+
 export function canonicalDailyPuzzle(idx, commonByLength) {
+  const pool = commonByLength[DAILY_LENGTHS[0]];
+  const order = dailyStartOrder(commonByLength);
+  const start = order[idx % order.length];
   const rng = mulberry32(idx + 1);
-  return generatePuzzle(rng, DAILY_LENGTHS, DAILY_PAR_RANGE, commonByLength);
+  const dist = bfsDistances(start);
+
+  let candidates = pool.filter(w =>
+    w !== start && dist.has(w) && dist.get(w) >= DAILY_PAR_RANGE[0] && dist.get(w) <= DAILY_PAR_RANGE[1]);
+  if (candidates.length === 0) {
+    candidates = [];
+    for (const [w, d] of dist) {
+      if (w !== start && d >= DAILY_PAR_RANGE[0] && d <= DAILY_PAR_RANGE[1]) candidates.push(w);
+    }
+  }
+  if (candidates.length > 0) {
+    const goal = pick(rng, candidates);
+    return { start, end: goal, par: dist.get(goal) };
+  }
+  let bestWord = null, bestDist = 0;
+  for (const [w, d] of dist) {
+    if (w !== start && d > bestDist) { bestDist = d; bestWord = w; }
+  }
+  if (bestWord) return { start, end: bestWord, par: bestDist };
+  return null;
 }
 
 // Validates a claimed solve chain against the canonical puzzle for a given

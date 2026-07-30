@@ -53,6 +53,8 @@ body:focus-visible, button:focus-visible, input:focus-visible {
 .brand-mark { color: var(--accent); display: flex; }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 20px; letter-spacing: 0.02em; }
 
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+
 .icon-btn {
   width: 40px; height: 40px;
   border-radius: 50%;
@@ -295,8 +297,15 @@ button {
   padding: 18px;
   text-align: center;
 }
+@keyframes win-pop {
+  0% { transform: scale(0.9); opacity: 0; }
+  60% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.win-card.is-popping { animation: win-pop 0.4s ease-out; }
 .win-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin: 0 0 4px; color: var(--text-hi); }
 .win-detail { font-size: 13px; color: var(--text-lo); margin: 0 0 14px; }
+.next-puzzle-note { font-size: 12px; color: var(--text-lo); margin: -8px 0 14px; }
 .win-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .win-actions button {
   height: 38px;

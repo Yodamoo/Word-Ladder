@@ -27,7 +27,10 @@
       </span>
       <span class="brand-name">Rungs</span>
     </div>
-    <button class="icon-btn" id="helpBtn" aria-label="How to play">?</button>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="statsBtn" aria-label="Your stats">📊</button>
+      <button class="icon-btn" id="helpBtn" aria-label="How to play">?</button>
+    </div>
   </header>
 
   <main>
@@ -77,6 +80,7 @@
     <div class="win-card" id="winCard" hidden>
       <p class="win-title" id="winTitle">Solved!</p>
       <p class="win-detail" id="winDetail"></p>
+      <p class="next-puzzle-note" id="nextPuzzleNote" hidden></p>
       <div class="win-actions">
         <button id="shareBtn">Share result</button>
         <button id="leaderboardBtn" class="ghost" hidden>🏆 Leaderboard</button>
@@ -125,6 +129,14 @@
     <p class="win-title" id="leaderboardTitle">Today's leaderboard</p>
     <div id="leaderboardBody"></div>
     <button id="closeLeaderboard">Close</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="statsBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <p class="win-title" id="statsTitle">Your stats</p>
+    <div id="statsBody"></div>
+    <button id="closeStats">Close</button>
   </div>
 </div>
 
