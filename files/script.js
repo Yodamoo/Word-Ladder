@@ -646,7 +646,7 @@ el.shareBtn.addEventListener("click", () => {
 // Google's public test Rewarded Ad unit — always serves test creative, safe
 // to ship, never generates real revenue. Swap for the real ad unit ID from
 // the user's AdMob account before a production release.
-const ADMOB_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+const ADMOB_REWARDED_AD_UNIT_ID = "ca-app-pub-9324750418213634/9797624613";
 
 // window.Capacitor.Plugins is how Capacitor exposes native plugins without a
 // bundler (we ship plain <script> tags, no import/build step) — undefined on
@@ -724,7 +724,7 @@ async function showRealRewardedAd(AdMob, onComplete) {
     }));
 
     await ensureAdMobInitialized();
-    await AdMob.prepareRewardVideoAd({ adId: ADMOB_REWARDED_AD_UNIT_ID, isTesting: true });
+    await AdMob.prepareRewardVideoAd({ adId: ADMOB_REWARDED_AD_UNIT_ID, isTesting: false });
     await AdMob.showRewardVideoAd();
   } catch (e) {
     failClosed("Couldn't show the ad right now — try again in a moment.");
