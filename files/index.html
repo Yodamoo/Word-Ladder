@@ -152,7 +152,11 @@
 <script src="words.js"></script>
 <script src="script.js"></script>
 <script>
-  if ("serviceWorker" in navigator) {
+  // The native app doesn't ship sw.js/manifest.json at all (see build.gradle) —
+  // service workers and web-install manifests are a browser-only concept, and
+  // everything the native app needs is already bundled locally.
+  var isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+  if (!isNativeApp && "serviceWorker" in navigator) {
     window.addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
   }
 </script>
