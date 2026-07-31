@@ -657,11 +657,16 @@ function getAdMobPlugin() {
 }
 
 let adMobReady = false;
+// Registers the developer's own phone as an AdMob test device so repeated
+// testing never serves (or gets flagged for) real ad impressions, while
+// every other device still receives real ads normally.
+const ADMOB_TEST_DEVICE_IDS = ["A9F4B72D7573DC1F9C72F186F6E151E7"];
+
 async function ensureAdMobInitialized() {
   const AdMob = getAdMobPlugin();
   if (!AdMob || adMobReady) return;
   try {
-    await AdMob.initialize({});
+    await AdMob.initialize({ testingDevices: ADMOB_TEST_DEVICE_IDS });
     adMobReady = true;
   } catch (e) { /* leave adMobReady false; each hint attempt just retries initialize-adjacent calls */ }
 }
