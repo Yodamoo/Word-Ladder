@@ -252,6 +252,8 @@ const el = {
   leaderboardBackdrop: document.getElementById("leaderboardBackdrop"),
   leaderboardBody: document.getElementById("leaderboardBody"),
   closeLeaderboard: document.getElementById("closeLeaderboard"),
+  lbTabTime: document.getElementById("lbTabTime"),
+  lbTabSteps: document.getElementById("lbTabSteps"),
   nameBackdrop: document.getElementById("nameBackdrop"),
   nameInput: document.getElementById("nameInput"),
   nameSubmit: document.getElementById("nameSubmit"),
@@ -493,10 +495,6 @@ el.form.addEventListener("submit", (e) => {
     setFeedback(guess + " isn't a valid word.");
     return;
   }
-  if (chain.includes(guess)) {
-    setFeedback("Already used that word.");
-    return;
-  }
 
   chain.push(guess);
   el.input.value = "";
@@ -567,6 +565,9 @@ function formatTime(s) {
   return m + ":" + String(r).padStart(2, "0");
 }
 
+let leaderboardData = null;
+let leaderboardTab = "time"; // "time" or "steps"
+
 function renderLeaderboard(data) {
   el.leaderboardBody.innerHTML = "";
   const addLine = (text) => {
@@ -576,17 +577,25 @@ function renderLeaderboard(data) {
     el.leaderboardBody.appendChild(p);
   };
   addLine(data.first ? "First to solve: " + data.first.name : "Nobody's solved it yet today.");
-  addLine("Fastest (no hints)");
+
+  const bySteps = leaderboardTab === "steps";
+  el.lbTabTime.setAttribute("aria-selected", String(!bySteps));
+  el.lbTabSteps.setAttribute("aria-selected", String(bySteps));
+
+  const ranked = (bySteps ? data.bySteps : data.ranked) || [];
+  addLine(bySteps ? "Fewest steps (no hints)" : "Fastest (no hints)");
   const list = document.createElement("ol");
   list.className = "lb-list";
-  if (!data.ranked || data.ranked.length === 0) {
+  if (ranked.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "No qualifying times yet.";
+    li.textContent = bySteps ? "No qualifying solves yet." : "No qualifying times yet.";
     list.appendChild(li);
   } else {
-    data.ranked.forEach(r => {
+    ranked.forEach(r => {
       const li = document.createElement("li");
-      li.textContent = r.name + " — " + formatTime(r.timeSeconds);
+      li.textContent = bySteps
+        ? r.name + " — " + r.steps + " steps (" + formatTime(r.timeSeconds) + ")"
+        : r.name + " — " + formatTime(r.timeSeconds) + " (" + r.steps + " steps)";
       list.appendChild(li);
     });
   }
@@ -597,12 +606,23 @@ function renderLeaderboard(data) {
     alist.className = "lb-list";
     data.assisted.forEach(r => {
       const li = document.createElement("li");
-      li.textContent = r.name + " — " + formatTime(r.timeSeconds);
+      li.textContent = r.name + " — " + formatTime(r.timeSeconds) + " (" + r.steps + " steps)";
       alist.appendChild(li);
     });
     el.leaderboardBody.appendChild(alist);
   }
 }
+
+el.lbTabTime.addEventListener("click", () => {
+  if (leaderboardTab === "time") return;
+  leaderboardTab = "time";
+  if (leaderboardData) renderLeaderboard(leaderboardData);
+});
+el.lbTabSteps.addEventListener("click", () => {
+  if (leaderboardTab === "steps") return;
+  leaderboardTab = "steps";
+  if (leaderboardData) renderLeaderboard(leaderboardData);
+});
 
 el.leaderboardBtn.addEventListener("click", async () => {
   el.leaderboardBackdrop.hidden = false;
@@ -614,6 +634,7 @@ el.leaderboardBtn.addEventListener("click", async () => {
   try {
     const res = await fetch(API_BASE + "/api/leaderboard/today");
     const data = await res.json();
+    leaderboardData = data;
     renderLeaderboard(data);
   } catch (e) {
     el.leaderboardBody.innerHTML = "";

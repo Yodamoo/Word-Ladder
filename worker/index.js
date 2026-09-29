@@ -77,18 +77,23 @@ async function handleToday(request, env) {
   ).bind(idx).first();
 
   const rankedRes = await env.DB.prepare(
-    `SELECT name, time_seconds FROM daily_scores WHERE day_index = ? AND hints = 0 ORDER BY time_seconds ASC LIMIT 20`
+    `SELECT name, time_seconds, steps FROM daily_scores WHERE day_index = ? AND hints = 0 ORDER BY time_seconds ASC LIMIT 20`
+  ).bind(idx).all();
+
+  const bySteps = await env.DB.prepare(
+    `SELECT name, time_seconds, steps FROM daily_scores WHERE day_index = ? AND hints = 0 ORDER BY steps ASC, time_seconds ASC LIMIT 20`
   ).bind(idx).all();
 
   const assistedRes = await env.DB.prepare(
-    `SELECT name, time_seconds FROM daily_scores WHERE day_index = ? AND hints > 0 ORDER BY time_seconds ASC LIMIT 20`
+    `SELECT name, time_seconds, steps FROM daily_scores WHERE day_index = ? AND hints > 0 ORDER BY time_seconds ASC LIMIT 20`
   ).bind(idx).all();
 
   return json({
     dayIndex: idx,
     first: firstRow ? { name: firstRow.name } : null,
-    ranked: (rankedRes.results || []).map(r => ({ name: r.name, timeSeconds: r.time_seconds })),
-    assisted: (assistedRes.results || []).map(r => ({ name: r.name, timeSeconds: r.time_seconds })),
+    ranked: (rankedRes.results || []).map(r => ({ name: r.name, timeSeconds: r.time_seconds, steps: r.steps })),
+    bySteps: (bySteps.results || []).map(r => ({ name: r.name, timeSeconds: r.time_seconds, steps: r.steps })),
+    assisted: (assistedRes.results || []).map(r => ({ name: r.name, timeSeconds: r.time_seconds, steps: r.steps })),
   });
 }
 

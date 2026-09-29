@@ -122,13 +122,10 @@ export function validateChain(chain, puzzle) {
   if (chain.length > 60) return false; // sanity cap
   if (chain[0] !== puzzle.start) return false;
   if (chain[chain.length - 1] !== puzzle.end) return false;
-  const seen = new Set();
   for (let i = 0; i < chain.length; i++) {
     const w = chain[i];
     if (typeof w !== "string" || !/^[A-Z]+$/.test(w)) return false;
     if (w.length !== puzzle.start.length) return false;
-    if (seen.has(w)) return false;
-    seen.add(w);
     if (i > 0) {
       if (!diffByOne(chain[i - 1], w)) return false;
       if (!WORDS.has(w)) return false;
