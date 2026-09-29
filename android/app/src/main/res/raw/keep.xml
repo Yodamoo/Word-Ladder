@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The notification icon is only referenced by name (capacitor.config.json ->
+     LocalNotifications.smallIcon), so the release resource shrinker can't see
+     it's used and would strip it. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_rungs" />
