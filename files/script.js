@@ -123,14 +123,48 @@ function dailyStartOrder() {
   return _dailyStartOrderCache;
 }
 
-// Like generatePuzzle, but the start word is fixed (from dailyStartOrder)
+// Daily-pool words that can't reach any word 3+ steps away (no neighbours at
+// all, or stuck in a tiny island), so they'd crash or make a 1-2 step daily.
+// Precomputed rather than checked at load time; regenerate if the word lists
+// change. Must match worker/game-logic.js exactly.
+const DAILY_UNPLAYABLE_STARTS = new Set([
+  "ACTOR","ADMIT","ADOPT","ADULT","AGAIN","AHEAD","ALBUM","ALIEN","ALIGN","ALPHA","ANGRY","ANNEX",
+  "ARROW","ASSET","AUDIO","AUDIT","AUTOS","AVOID","AWFUL","BELOW","CLAIM","CYCLE","DELTA","DILDO",
+  "DOUBT","EAGLE","EMPTY","ENEMY","ENJOY","ENTRY","EQUAL","ERROR","ESSAY","EXACT","EXAMS","EXCEL",
+  "EXIST","EXTRA","FIBRE","FIELD","FIRST","FRAUD","GNOME","HONDA","HUMAN","HUMOR","IMAGE","INDEX",
+  "INPUT","INTRO","ISSUE","IVORY","JAPAN","JUICE","KARMA","KNIFE","LEONE","MAYBE","MERIT","OCCUR",
+  "OMEGA","OPERA","ORBIT","ORGAN","OUGHT","OXIDE","OZONE","PIZZA","PROOF","PROUD","QUEEN","QUEUE",
+  "RADAR","RALPH","REHAB","ROBOT","RUGBY","SIGMA","SPERM","SUGAR","THEFT","THEIR","THETA","TUMOR",
+  "TURBO","TWIST","ULTRA","UNCLE","UNTIL","URBAN","USAGE","USERS","USING","USUAL","VISIT","WAGON",
+  "WIDTH","XEROX","YACHT","YAHOO","YIELD","YOUNG",
+]);
+
+// From this day on, unplayable start words are skipped. Earlier days keep
+// their original start words so puzzles already played (and scores already on
+// the leaderboard) never change underneath anyone.
+const DAILY_FILTER_FROM_DAY = 100;
+let _playableTailCache = null, _playableAllCache = null;
+function dailyStartWord(idx) {
+  const order = dailyStartOrder();
+  if (idx < DAILY_FILTER_FROM_DAY) return order[idx % order.length];
+  if (!_playableTailCache) {
+    const playable = w => !DAILY_UNPLAYABLE_STARTS.has(w);
+    _playableTailCache = order.slice(DAILY_FILTER_FROM_DAY).filter(playable);
+    _playableAllCache = order.filter(playable);
+  }
+  const i = idx - DAILY_FILTER_FROM_DAY;
+  if (i < _playableTailCache.length) return _playableTailCache[i];
+  const j = i - _playableTailCache.length;
+  return _playableAllCache[j % _playableAllCache.length];
+}
+
+// Like generatePuzzle, but the start word is fixed (from dailyStartWord)
 // rather than randomly picked, so the daily challenge never repeats a start
 // word until the whole pool has cycled. Only the goal is chosen via the
 // day-seeded RNG, same as before.
 function generateDailyPuzzle(idx) {
   const pool = COMMON_BY_LENGTH[DAILY_LENGTHS[0]];
-  const order = dailyStartOrder();
-  const start = order[idx % order.length];
+  const start = dailyStartWord(idx);
   const rng = mulberry32(idx + 1);
   const dist = bfsDistances(start);
 
@@ -198,7 +232,11 @@ function dayIndex() {
 
 function dailyPuzzle() {
   const idx = dayIndex();
-  return { idx, puzzle: generateDailyPuzzle(idx) };
+  // Fallback keeps the page playable if generation ever fails; the server
+  // won't rank that puzzle, but a playable game beats a blank screen.
+  const puzzle = generateDailyPuzzle(idx)
+    || generatePuzzle(mulberry32(idx + 1), DAILY_LENGTHS, DAILY_PAR_RANGE);
+  return { idx, puzzle };
 }
 
 function practicePuzzle(difficulty) {

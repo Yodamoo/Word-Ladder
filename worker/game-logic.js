@@ -86,10 +86,38 @@ function dailyStartOrder(commonByLength) {
   return _dailyStartOrderCache;
 }
 
+// Must match files/script.js's DAILY_UNPLAYABLE_STARTS / DAILY_FILTER_FROM_DAY
+// / dailyStartWord() exactly.
+const DAILY_UNPLAYABLE_STARTS = new Set([
+  "ACTOR","ADMIT","ADOPT","ADULT","AGAIN","AHEAD","ALBUM","ALIEN","ALIGN","ALPHA","ANGRY","ANNEX",
+  "ARROW","ASSET","AUDIO","AUDIT","AUTOS","AVOID","AWFUL","BELOW","CLAIM","CYCLE","DELTA","DILDO",
+  "DOUBT","EAGLE","EMPTY","ENEMY","ENJOY","ENTRY","EQUAL","ERROR","ESSAY","EXACT","EXAMS","EXCEL",
+  "EXIST","EXTRA","FIBRE","FIELD","FIRST","FRAUD","GNOME","HONDA","HUMAN","HUMOR","IMAGE","INDEX",
+  "INPUT","INTRO","ISSUE","IVORY","JAPAN","JUICE","KARMA","KNIFE","LEONE","MAYBE","MERIT","OCCUR",
+  "OMEGA","OPERA","ORBIT","ORGAN","OUGHT","OXIDE","OZONE","PIZZA","PROOF","PROUD","QUEEN","QUEUE",
+  "RADAR","RALPH","REHAB","ROBOT","RUGBY","SIGMA","SPERM","SUGAR","THEFT","THEIR","THETA","TUMOR",
+  "TURBO","TWIST","ULTRA","UNCLE","UNTIL","URBAN","USAGE","USERS","USING","USUAL","VISIT","WAGON",
+  "WIDTH","XEROX","YACHT","YAHOO","YIELD","YOUNG",
+]);
+const DAILY_FILTER_FROM_DAY = 100;
+let _playableTailCache = null, _playableAllCache = null;
+function dailyStartWord(idx, commonByLength) {
+  const order = dailyStartOrder(commonByLength);
+  if (idx < DAILY_FILTER_FROM_DAY) return order[idx % order.length];
+  if (!_playableTailCache) {
+    const playable = w => !DAILY_UNPLAYABLE_STARTS.has(w);
+    _playableTailCache = order.slice(DAILY_FILTER_FROM_DAY).filter(playable);
+    _playableAllCache = order.filter(playable);
+  }
+  const i = idx - DAILY_FILTER_FROM_DAY;
+  if (i < _playableTailCache.length) return _playableTailCache[i];
+  const j = i - _playableTailCache.length;
+  return _playableAllCache[j % _playableAllCache.length];
+}
+
 export function canonicalDailyPuzzle(idx, commonByLength) {
   const pool = commonByLength[DAILY_LENGTHS[0]];
-  const order = dailyStartOrder(commonByLength);
-  const start = order[idx % order.length];
+  const start = dailyStartWord(idx, commonByLength);
   const rng = mulberry32(idx + 1);
   const dist = bfsDistances(start);
 
