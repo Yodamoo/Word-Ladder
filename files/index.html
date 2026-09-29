@@ -37,6 +37,7 @@
     <div class="mode-tabs" role="tablist">
       <button class="tab-btn" id="tabDaily" role="tab" aria-selected="true">Daily</button>
       <button class="tab-btn" id="tabPractice" role="tab" aria-selected="false">Practice</button>
+      <button class="tab-btn" id="tabArchive" role="tab" aria-selected="false">Archive</button>
     </div>
 
     <div class="difficulty-row" id="difficultyRow" hidden>
@@ -44,6 +45,11 @@
       <button class="diff-btn" data-diff="medium">Medium</button>
       <button class="diff-btn" data-diff="hard">Hard</button>
       <button class="icon-btn" id="newPuzzleBtn" aria-label="New puzzle" title="New puzzle">↻</button>
+    </div>
+
+    <div class="difficulty-row" id="archiveRow" hidden>
+      <span class="archive-note">Past dailies · not ranked</span>
+      <button class="diff-btn" id="chooseDayBtn">📅 Choose a day</button>
     </div>
 
     <div class="puzzle-meta">
@@ -71,6 +77,7 @@
     <button type="button" class="play-again-btn" id="playAgainBtn" hidden>🔄 New puzzle</button>
 
     <div class="hint-row" id="hintRow">
+      <button type="button" class="hint-btn" id="undoBtn" aria-label="Undo: step back one word (counts as a step)" title="Step back one word (counts as a step)">↶ Undo</button>
       <button type="button" class="hint-btn" id="hintBtn">🎬 Watch an ad for a hint</button>
       <span class="hint-count" id="hintCountLabel"></span>
     </div>
@@ -80,6 +87,7 @@
     <div class="win-card" id="winCard" hidden>
       <p class="win-title" id="winTitle">Solved!</p>
       <p class="win-detail" id="winDetail"></p>
+      <p class="par-route" id="parRoute" hidden></p>
       <p class="next-puzzle-note" id="nextPuzzleNote" hidden></p>
       <div class="win-actions">
         <button id="shareBtn">Share result</button>
@@ -115,8 +123,9 @@
 <div class="modal-backdrop" id="nameBackdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
     <p class="win-title" id="nameTitle">Name for the leaderboard?</p>
-    <p class="help-text">This shows next to your daily results. You can change it any time.</p>
+    <p class="help-text">This shows next to your daily results. You can change it any time from 📊 Your stats.</p>
     <input type="text" id="nameInput" class="modal-input" maxlength="24" placeholder="Anonymous" />
+    <p class="modal-error" id="nameError" hidden></p>
     <div class="win-actions">
       <button id="nameSubmit">Save</button>
       <button id="nameSkip" class="ghost">Skip</button>
@@ -140,15 +149,36 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
     <p class="win-title" id="statsTitle">Your stats</p>
     <div id="statsBody"></div>
+    <div class="settings-row">
+      <span class="help-text" id="nameLabel">Leaderboard name: Anonymous</span>
+      <button class="diff-btn" id="changeNameBtn">Change</button>
+    </div>
+    <div class="settings-row" id="reminderRow" hidden>
+      <label class="help-text" for="reminderToggle">
+        <input type="checkbox" id="reminderToggle" /> Daily reminder at
+      </label>
+      <input type="time" id="reminderTime" class="time-input" value="19:00" />
+    </div>
+    <p class="modal-error" id="reminderError" hidden></p>
     <button id="closeStats">Close</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="archiveBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="archiveTitle">
+    <p class="win-title" id="archiveTitle">Past dailies</p>
+    <p class="help-text">Missed a day? Play it here. Archive puzzles don't count toward your streak or the leaderboard.</p>
+    <ul class="archive-list" id="archiveList"></ul>
+    <button id="closeArchive">Close</button>
   </div>
 </div>
 
 <div class="modal-backdrop" id="helpBackdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
     <p class="win-title" id="helpTitle">How to play</p>
-    <p class="help-text">Turn the start word into the goal word, one letter at a time. Every step in between has to be a real word. Fewer steps than par gets you the shiny result.</p>
+    <p class="help-text">Turn the start word into the goal word, one letter at a time. Every step in between has to be a real word. Par is the shortest possible route — match it for the best result.</p>
     <p class="help-text">Example: CAT → COT → COG → DOG</p>
+    <p class="help-text">Took a wrong turn? ↶ Undo steps back one word. It counts as a step, just like typing the word again.</p>
     <button id="closeHelp">Got it</button>
   </div>
 </div>

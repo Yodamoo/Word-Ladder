@@ -329,7 +329,7 @@ button {
 
 /* --- Help modal --- */
 .modal-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
   display: flex;
@@ -340,11 +340,16 @@ button {
 .modal-backdrop[hidden] {
   display: none;
 }
+/* Can be opened on top of the stats modal ("Change name"). */
+#nameBackdrop { z-index: 10; }
 .modal {
   background: var(--ink-raised);
   border-radius: 14px;
   padding: 22px;
   max-width: 340px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
   border: 1px solid var(--rail);
 }
 .help-text { font-size: 14px; line-height: 1.6; color: var(--text-lo); margin: 0 0 14px; }
@@ -378,6 +383,94 @@ button {
   border-bottom: 1px solid var(--ink);
 }
 .lb-list li:last-child { border-bottom: none; }
+.lb-list li.is-me { color: var(--accent); font-weight: 600; }
+.lb-you { color: var(--accent) !important; }
+
+/* Rungs you backed out of with Undo (or by retyping the previous word). */
+.rung.is-backtracked { opacity: 0.4; }
+
+.par-route {
+  font-size: 12px;
+  color: var(--text-lo);
+  font-family: var(--font-mono);
+  margin: -8px 0 14px;
+  line-height: 1.5;
+}
+.par-route[hidden] { display: none; }
+
+.archive-note { font-size: 12px; color: var(--text-lo); margin-right: auto; }
+
+.modal-error { font-size: 13px; color: var(--error); margin: -6px 0 12px; }
+.modal-error[hidden] { display: none; }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.settings-row[hidden] { display: none; }
+.settings-row .help-text { margin: 0; }
+.settings-row .diff-btn { height: 34px; }
+.time-input {
+  height: 34px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rail);
+  background: var(--ink);
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  padding: 0 8px;
+  color-scheme: dark;
+}
+
+.archive-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.archive-list button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-bottom: 6px;
+  background: var(--ink);
+  color: var(--text-hi);
+  border: 1px solid var(--ink);
+  text-align: left;
+}
+.archive-list button:hover { border-color: var(--rail); }
+.archive-status { font-size: 12px; color: var(--text-lo); }
+.archive-status.is-done { color: var(--success); }
+
+/* Steps-vs-par distribution in the stats modal. */
+.dist { margin: 0 0 16px; }
+.dist-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 12px; color: var(--text-lo); }
+.dist-label { width: 34px; text-align: right; flex-shrink: 0; }
+.dist-bar {
+  background: var(--rail);
+  color: var(--text-hi);
+  border-radius: 4px;
+  min-width: 22px;
+  padding: 2px 6px;
+  text-align: right;
+  font-weight: 600;
+}
+.dist-bar.is-par { background: var(--success); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.stat-cell { background: var(--ink); border-radius: 8px; padding: 8px 10px; }
+.stat-num { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text-hi); }
+.stat-cap { font-size: 11px; color: var(--text-lo); }
+.stats-section { font-size: 12px; color: var(--text-lo); text-transform: uppercase; letter-spacing: 0.06em; margin: 4px 0 8px; }
+
+#closeStats, #closeLeaderboard, #closeArchive {
+  height: 38px; width: 100%; background: var(--accent); color: var(--ink);
+}
 
 @media (max-width: 360px) {
   .tile { width: 30px; height: 30px; font-size: 14px; }

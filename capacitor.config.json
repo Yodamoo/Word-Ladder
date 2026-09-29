@@ -1,5 +1,11 @@
 {
   "appId": "com.yodamoo.rungs",
   "appName": "Rungs",
-  "webDir": "files"
+  "webDir": "files",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_rungs",
+      "iconColor": "#C98A3E"
+    }
+  }
 }

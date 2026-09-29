@@ -1,7 +1,7 @@
 // sw.js — offline cache for Rungs
 // Bump CACHE_NAME whenever a cached asset changes so old clients pick up
 // the new version instead of serving stale files forever.
-const CACHE_NAME = "rungs-cache-v14";
+const CACHE_NAME = "rungs-cache-v15";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
@@ -37,6 +37,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  // The leaderboard API lives on this same origin; it must always hit the
+  // network, or the leaderboard freezes at the first response ever seen.
+  if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

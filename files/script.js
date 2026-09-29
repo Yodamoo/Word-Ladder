@@ -230,13 +230,56 @@ function dayIndex() {
   return Math.floor((now - EPOCH) / 86400000);
 }
 
-function dailyPuzzle() {
-  const idx = dayIndex();
+function dailyPuzzleFor(idx) {
   // Fallback keeps the page playable if generation ever fails; the server
   // won't rank that puzzle, but a playable game beats a blank screen.
   const puzzle = generateDailyPuzzle(idx)
     || generatePuzzle(mulberry32(idx + 1), DAILY_LENGTHS, DAILY_PAR_RANGE);
   return { idx, puzzle };
+}
+
+function dailyPuzzle() {
+  return dailyPuzzleFor(dayIndex());
+}
+
+function dayDateLabel(idx) {
+  const d = new Date(EPOCH.getTime() + idx * 86400000);
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+// One shortest route (there are often several), shown after solving.
+function shortestPath(start, goal) {
+  const prev = new Map([[start, null]]);
+  const queue = [start];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    if (cur === goal) break;
+    for (const n of neighbors(cur)) {
+      if (!prev.has(n)) { prev.set(n, cur); queue.push(n); }
+    }
+  }
+  if (!prev.has(goal)) return null;
+  const path = [];
+  for (let w = goal; w !== null; w = prev.get(w)) path.push(w);
+  return path.reverse();
+}
+
+// The route a player is actually on, ignoring detours they backed out of:
+// stepping onto the word before the current one counts as undoing the last
+// step. Returns indices into `words`; the latest word is always included,
+// so e.g. A B C B -> [A, latest B] and the earlier B + C render as a detour.
+function effectivePathIndices(words) {
+  const stack = [];
+  words.forEach((w, i) => {
+    if (stack.length >= 2 && words[stack[stack.length - 2]] === w) {
+      stack.pop();
+      stack[stack.length - 1] = i;
+    } else {
+      stack.push(i);
+    }
+  });
+  return stack;
 }
 
 function practicePuzzle(difficulty) {
@@ -246,10 +289,11 @@ function practicePuzzle(difficulty) {
 }
 
 // --- Game state ---
-let mode = "daily"; // "daily" | "practice"
+let mode = "daily"; // "daily" | "practice" | "archive"
 let difficulty = localStorage.getItem("rungs:difficulty") || "medium";
 let daily = dailyPuzzle();
 let practice = null; // { start, end, par }
+let archive = null; // { idx, puzzle } — a past daily, replayed unranked
 let chain = [];
 let won = false;
 let hintCount = 0;
@@ -300,10 +344,28 @@ const el = {
   statsBackdrop: document.getElementById("statsBackdrop"),
   statsBody: document.getElementById("statsBody"),
   closeStats: document.getElementById("closeStats"),
+  tabArchive: document.getElementById("tabArchive"),
+  archiveRow: document.getElementById("archiveRow"),
+  chooseDayBtn: document.getElementById("chooseDayBtn"),
+  archiveBackdrop: document.getElementById("archiveBackdrop"),
+  archiveList: document.getElementById("archiveList"),
+  closeArchive: document.getElementById("closeArchive"),
+  undoBtn: document.getElementById("undoBtn"),
+  parRoute: document.getElementById("parRoute"),
+  nameTitle: document.getElementById("nameTitle"),
+  nameError: document.getElementById("nameError"),
+  nameLabel: document.getElementById("nameLabel"),
+  changeNameBtn: document.getElementById("changeNameBtn"),
+  reminderRow: document.getElementById("reminderRow"),
+  reminderToggle: document.getElementById("reminderToggle"),
+  reminderTime: document.getElementById("reminderTime"),
+  reminderError: document.getElementById("reminderError"),
 };
 
 function currentPuzzle() {
-  return mode === "daily" ? daily.puzzle : practice;
+  if (mode === "daily") return daily.puzzle;
+  if (mode === "archive") return archive.puzzle;
+  return practice;
 }
 
 function getPlayerId() {
@@ -323,8 +385,12 @@ function setPlayerName(name) {
   localStorage.setItem("rungs:playerName", name);
 }
 
+// Archive replays share the day's key, so a day you half-played on the day
+// resumes where you left off, and a day you already solved shows as solved.
 function storageKey() {
-  return mode === "daily" ? "rungs:daily:" + daily.idx : "rungs:practice";
+  if (mode === "daily") return "rungs:daily:" + daily.idx;
+  if (mode === "archive") return "rungs:daily:" + archive.idx;
+  return "rungs:practice";
 }
 
 // Restores chain/won progress for whichever puzzle is already current. Does
@@ -365,43 +431,74 @@ function loadStoredPracticePuzzle() {
 
 function saveProgress() {
   try {
-    const payload = mode === "practice"
-      ? { puzzle: practice, chain, won, hintCount, startedAt }
-      : { chain, won, hintCount, startedAt };
+    let payload;
+    if (mode === "practice") {
+      payload = { puzzle: practice, chain, won, hintCount, startedAt };
+    } else {
+      payload = { chain, won, hintCount, startedAt, par: currentPuzzle().par };
+      // viaArchive marks a day finished after the fact, so it can never
+      // count toward a streak.
+      if (mode === "archive") payload.viaArchive = true;
+    }
     localStorage.setItem(storageKey(), JSON.stringify(payload));
   } catch (e) { /* storage unavailable, fine */ }
 }
 
+const DIST_KEYS = ["par", "p1", "p2", "p3", "p4"]; // at par, +1, +2, +3, +4 or more
+
 function getStats() {
-  try {
-    const s = JSON.parse(localStorage.getItem("rungs:stats"));
-    return {
-      dailyCompleted: (s && s.dailyCompleted) || 0,
-      dailyHints: (s && s.dailyHints) || 0,
-      practiceCompleted: (s && s.practiceCompleted) || 0,
-      practiceHints: (s && s.practiceHints) || 0,
-    };
-  } catch (e) {
-    return { dailyCompleted: 0, dailyHints: 0, practiceCompleted: 0, practiceHints: 0 };
-  }
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem("rungs:stats")); } catch (e) { /* corrupt */ }
+  const dist = {};
+  DIST_KEYS.forEach(k => { dist[k] = (s && s.dailyDist && s.dailyDist[k]) || 0; });
+  return {
+    dailyCompleted: (s && s.dailyCompleted) || 0,
+    dailyHints: (s && s.dailyHints) || 0,
+    practiceCompleted: (s && s.practiceCompleted) || 0,
+    practiceHints: (s && s.practiceHints) || 0,
+    archiveCompleted: (s && s.archiveCompleted) || 0,
+    archiveHints: (s && s.archiveHints) || 0,
+    dailyDist: dist,
+  };
+}
+
+function saveStats(stats) {
+  try { localStorage.setItem("rungs:stats", JSON.stringify(stats)); } catch (e) { /* fine */ }
 }
 
 function bumpStat(key) {
   const stats = getStats();
   stats[key] = (stats[key] || 0) + 1;
-  localStorage.setItem("rungs:stats", JSON.stringify(stats));
+  saveStats(stats);
 }
 
-function getStreak() {
-  return parseInt(localStorage.getItem("rungs:streak") || "0", 10);
+function recordDailyResult(steps, par) {
+  const stats = getStats();
+  const over = Math.max(0, steps - par);
+  stats.dailyDist[DIST_KEYS[Math.min(over, 4)]]++;
+  saveStats(stats);
 }
 
-function bumpStreak() {
-  const lastWin = localStorage.getItem("rungs:lastWinIndex");
-  if (lastWin === String(daily.idx)) return; // already counted today
-  const streak = getStreak() + 1;
-  localStorage.setItem("rungs:streak", String(streak));
-  localStorage.setItem("rungs:lastWinIndex", String(daily.idx));
+function dailyEntry(idx) {
+  try { return JSON.parse(localStorage.getItem("rungs:daily:" + idx)); } catch (e) { return null; }
+}
+
+function wonOnTheDay(idx) {
+  const e = dailyEntry(idx);
+  return !!(e && e.won && !e.viaArchive);
+}
+
+// Worked out from saved daily results rather than a stored counter, so a
+// missed day really does break the streak.
+function getStreaks() {
+  let current = 0;
+  for (let i = wonOnTheDay(daily.idx) ? daily.idx : daily.idx - 1; i >= 0 && wonOnTheDay(i); i--) current++;
+  let best = 0, run = 0;
+  for (let d = 0; d <= daily.idx; d++) {
+    run = wonOnTheDay(d) ? run + 1 : 0;
+    if (run > best) best = run;
+  }
+  return { current, best };
 }
 
 function render() {
@@ -411,24 +508,32 @@ function render() {
 
   el.tabDaily.setAttribute("aria-selected", String(mode === "daily"));
   el.tabPractice.setAttribute("aria-selected", String(mode === "practice"));
+  el.tabArchive.setAttribute("aria-selected", String(mode === "archive"));
   el.difficultyRow.hidden = mode !== "practice";
+  el.archiveRow.hidden = mode !== "archive";
   el.diffBtns.forEach(b => b.classList.toggle("is-active", b.dataset.diff === difficulty));
 
   if (mode === "daily") {
     el.puzzleLabel.textContent = "Daily #" + (daily.idx + 1);
+  } else if (mode === "archive") {
+    el.puzzleLabel.textContent = "Daily #" + (archive.idx + 1) + " · " + dayDateLabel(archive.idx);
   } else {
     el.puzzleLabel.textContent = "Practice · " + DIFFICULTIES[difficulty].label;
   }
   el.parLabel.textContent = "Par " + PAR;
-  el.streakLabel.textContent = "Streak: " + getStreak();
+  el.streakLabel.textContent = "Streak: " + getStreaks().current;
 
   el.hintCountLabel.textContent = hintCount > 0
     ? hintCount + " hint" + (hintCount === 1 ? "" : "s") + " used"
     : "";
   el.hintBtn.disabled = won;
 
+  const onPath = effectivePathIndices(chain);
+  el.undoBtn.disabled = won || onPath.length < 2;
+
   el.ladder.innerHTML = "";
 
+  const onPathSet = new Set(onPath);
   chain.forEach((word, i) => {
     const row = document.createElement("div");
     row.className = "rung";
@@ -436,6 +541,7 @@ function render() {
     if (word === GOAL) row.classList.add("is-solved");
     const isLatest = i === chain.length - 1 && word !== GOAL;
     if (isLatest) row.classList.add("is-latest");
+    if (!onPathSet.has(i)) row.classList.add("is-backtracked");
 
     word.split("").forEach((ch, ti) => {
       const tile = document.createElement("span");
@@ -470,14 +576,19 @@ function render() {
 
   el.form.hidden = won;
   el.hintRow.hidden = won;
-  el.playAgainBtn.hidden = !won || mode !== "practice";
+  el.playAgainBtn.hidden = !won || mode === "daily";
+  el.playAgainBtn.textContent = mode === "archive" ? "📅 Play another day" : "🔄 New puzzle";
 
   if (won) {
     el.winCard.hidden = false;
     const steps = chain.length - 1;
     const hintPart = hintCount > 0 ? " · " + hintCount + " hint" + (hintCount === 1 ? "" : "s") : "";
+    // Par is the shortest possible route, so matching it is the best result.
     el.winDetail.textContent = steps + " step" + (steps === 1 ? "" : "s") +
-      " · par " + PAR + (steps <= PAR ? " · under par" : "") + hintPart;
+      " · par " + PAR + (steps <= PAR ? " · perfect!" : "") + hintPart;
+    const route = steps > PAR ? cachedShortestPath(puzzle) : null;
+    el.parRoute.hidden = !route;
+    if (route) el.parRoute.textContent = "Shortest route: " + route.join(" → ");
     el.leaderboardBtn.hidden = mode !== "daily";
     if (mode === "daily") {
       const now = new Date();
@@ -491,6 +602,13 @@ function render() {
   } else {
     el.winCard.hidden = true;
   }
+}
+
+let _routeCache = { key: null, route: null };
+function cachedShortestPath(puzzle) {
+  const key = puzzle.start + ">" + puzzle.end;
+  if (_routeCache.key !== key) _routeCache = { key, route: shortestPath(puzzle.start, puzzle.end) };
+  return _routeCache.route;
 }
 
 // Vibration API no-ops silently where unsupported (desktop browsers, iOS
@@ -534,24 +652,41 @@ el.form.addEventListener("submit", (e) => {
     return;
   }
 
-  chain.push(guess);
   el.input.value = "";
+  addStep(guess);
+});
+
+function addStep(word) {
+  chain.push(word);
   setFeedback("");
   hintPosition = null; // stale now that the word it pointed at is behind us
 
-  if (guess === currentPuzzle().end) {
+  if (word === currentPuzzle().end) {
     won = true;
     if (mode === "daily") {
-      bumpStreak();
       submitDailyScore();
       bumpStat("dailyCompleted");
+      recordDailyResult(chain.length - 1, currentPuzzle().par);
+    } else if (mode === "archive") {
+      bumpStat("archiveCompleted");
     } else {
       bumpStat("practiceCompleted");
     }
   }
   saveProgress();
+  if (won && mode === "daily") scheduleReminders();
   render();
   if (won) celebrateWin();
+}
+
+// Undo = stepping back onto the previous word of your current route. It's
+// recorded as a real step (same as typing that word again), which keeps the
+// fewest-steps leaderboard honest and needs nothing special on the server.
+el.undoBtn.addEventListener("click", () => {
+  if (won) return;
+  const onPath = effectivePathIndices(chain);
+  if (onPath.length < 2) return;
+  addStep(chain[onPath[onPath.length - 2]]);
 });
 
 function submitDailyScore() {
@@ -559,8 +694,7 @@ function submitDailyScore() {
   const name = getPlayerName();
   if (name === null) {
     pendingSubmission = { chain: chain.slice(), hints: hintCount, elapsedSeconds };
-    el.nameInput.value = "";
-    el.nameBackdrop.hidden = false;
+    openNamePrompt(false);
     return;
   }
   sendScore(name, chain.slice(), hintCount, elapsedSeconds);
@@ -571,6 +705,13 @@ function sendScore(name, chainArr, hints, elapsedSeconds) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ playerId: getPlayerId(), name, chain: chainArr, hints, elapsedSeconds }),
+  }).then(r => r.json()).then(res => {
+    // The server has the final say on names (e.g. one saved before the filter
+    // existed). It lists you as Anonymous, and we ask again next time.
+    if (res && res.nameRejected) {
+      localStorage.removeItem("rungs:playerName");
+      setFeedback("That name isn't allowed on the leaderboard, so you're listed as Anonymous today.");
+    }
   }).catch(() => { /* best-effort; a failed submit shouldn't break the win screen */ });
 }
 
@@ -579,24 +720,66 @@ function resolvePlayerName(rawInput) {
   return trimmed || "Anonymous";
 }
 
-el.nameSubmit.addEventListener("click", () => {
-  const name = resolvePlayerName(el.nameInput.value);
+// true/false from the server; null if it couldn't be reached, in which case
+// we accept the name locally — the server still filters it on submit.
+async function isNameAllowedRemote(name) {
+  try {
+    const res = await fetch(API_BASE + "/api/name/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    return typeof data.allowed === "boolean" ? data.allowed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+let renamingOnly = false; // true when opened from stats, with no score waiting
+
+function openNamePrompt(rename) {
+  renamingOnly = rename;
+  const current = getPlayerName();
+  el.nameTitle.textContent = rename ? "Change your leaderboard name" : "Name for the leaderboard?";
+  el.nameInput.value = rename && current && current !== "Anonymous" ? current : "";
+  el.nameSkip.textContent = rename ? "Cancel" : "Skip";
+  el.nameError.hidden = true;
+  el.nameBackdrop.hidden = false;
+}
+
+function finishNamePrompt(name) {
   setPlayerName(name);
   el.nameBackdrop.hidden = true;
   if (pendingSubmission) {
     sendScore(name, pendingSubmission.chain, pendingSubmission.hints, pendingSubmission.elapsedSeconds);
     pendingSubmission = null;
   }
+  if (!el.statsBackdrop.hidden) renderStats();
+}
+
+el.nameSubmit.addEventListener("click", async () => {
+  const name = resolvePlayerName(el.nameInput.value);
+  if (name !== "Anonymous") {
+    el.nameSubmit.disabled = true;
+    const allowed = await isNameAllowedRemote(name);
+    el.nameSubmit.disabled = false;
+    if (allowed === false) {
+      el.nameError.textContent = "That name isn't allowed. Please pick another.";
+      el.nameError.hidden = false;
+      return;
+    }
+  }
+  finishNamePrompt(name);
 });
 el.nameSkip.addEventListener("click", () => {
-  const name = "Anonymous";
-  setPlayerName(name);
-  el.nameBackdrop.hidden = true;
-  if (pendingSubmission) {
-    sendScore(name, pendingSubmission.chain, pendingSubmission.hints, pendingSubmission.elapsedSeconds);
-    pendingSubmission = null;
-  }
+  if (renamingOnly) { el.nameBackdrop.hidden = true; return; }
+  finishNamePrompt("Anonymous");
 });
+el.nameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") el.nameSubmit.click();
+});
+el.changeNameBtn.addEventListener("click", () => openNamePrompt(true));
 
 function formatTime(s) {
   const m = Math.floor(s / 60), r = Math.round(s % 60);
@@ -614,11 +797,17 @@ function renderLeaderboard(data) {
     p.textContent = text;
     el.leaderboardBody.appendChild(p);
   };
-  addLine(data.first ? "First to solve: " + data.first.name : "Nobody's solved it yet today.");
+  addLine(data.first
+    ? "First to solve: " + data.first.name + (data.first.isMe ? " (you!)" : "")
+    : "Nobody's solved it yet today.");
 
   const bySteps = leaderboardTab === "steps";
   el.lbTabTime.setAttribute("aria-selected", String(!bySteps));
   el.lbTabSteps.setAttribute("aria-selected", String(bySteps));
+
+  const describe = r => bySteps
+    ? r.steps + " steps (" + formatTime(r.timeSeconds) + ")"
+    : formatTime(r.timeSeconds) + " (" + r.steps + " steps)";
 
   const ranked = (bySteps ? data.bySteps : data.ranked) || [];
   addLine(bySteps ? "Fewest steps (no hints)" : "Fastest (no hints)");
@@ -629,22 +818,30 @@ function renderLeaderboard(data) {
     li.textContent = bySteps ? "No qualifying solves yet." : "No qualifying times yet.";
     list.appendChild(li);
   } else {
-    ranked.forEach(r => {
+    ranked.forEach((r, i) => {
       const li = document.createElement("li");
-      li.textContent = bySteps
-        ? r.name + " — " + r.steps + " steps (" + formatTime(r.timeSeconds) + ")"
-        : r.name + " — " + formatTime(r.timeSeconds) + " (" + r.steps + " steps)";
+      li.textContent = (i + 1) + ". " + r.name + (r.isMe ? " (you)" : "") + " — " + describe(r);
+      if (r.isMe) li.classList.add("is-me");
       list.appendChild(li);
     });
   }
   el.leaderboardBody.appendChild(list);
+
+  // Your own standing when you didn't make the top 20 shown above.
+  const me = data.me;
+  if (me && me.hints === 0 && !ranked.some(r => r.isMe)) {
+    addLine("You: #" + (bySteps ? me.rankSteps : me.rankTime) + " — " + describe(me));
+    el.leaderboardBody.lastChild.classList.add("lb-you");
+  }
+
   if (data.assisted && data.assisted.length) {
     addLine("Assisted (used a hint)");
     const alist = document.createElement("ul");
     alist.className = "lb-list";
     data.assisted.forEach(r => {
       const li = document.createElement("li");
-      li.textContent = r.name + " — " + formatTime(r.timeSeconds) + " (" + r.steps + " steps)";
+      li.textContent = r.name + (r.isMe ? " (you)" : "") + " — " + formatTime(r.timeSeconds) + " (" + r.steps + " steps)";
+      if (r.isMe) li.classList.add("is-me");
       alist.appendChild(li);
     });
     el.leaderboardBody.appendChild(alist);
@@ -670,7 +867,9 @@ el.leaderboardBtn.addEventListener("click", async () => {
   p.textContent = "Loading…";
   el.leaderboardBody.appendChild(p);
   try {
-    const res = await fetch(API_BASE + "/api/leaderboard/today");
+    const res = await fetch(API_BASE + "/api/leaderboard/today", {
+      headers: { "X-Player-Id": getPlayerId() },
+    });
     const data = await res.json();
     leaderboardData = data;
     renderLeaderboard(data);
@@ -692,7 +891,9 @@ el.shareBtn.addEventListener("click", () => {
   const steps = chain.length - 1;
   const diff = steps - puzzle.par;
   const resultTag = diff <= 0 ? "🟢" : diff === 1 ? "🟡" : "🟠";
-  const label = mode === "daily" ? "Daily #" + (daily.idx + 1) : "Practice (" + DIFFICULTIES[difficulty].label + ")";
+  const label = mode === "daily" ? "Daily #" + (daily.idx + 1)
+    : mode === "archive" ? "Archive #" + (archive.idx + 1)
+    : "Practice (" + DIFFICULTIES[difficulty].label + ")";
   const hintPart = hintCount > 0 ? ` · ${hintCount} hint${hintCount === 1 ? "" : "s"}` : "";
   const text = `Rungs ${label} ${resultTag} ${steps}/${puzzle.par} steps${hintPart}\n${puzzle.start} → ${puzzle.end}`;
   if (navigator.clipboard) {
@@ -800,7 +1001,10 @@ function startHintFlow() {
   showRewardedAd(() => {
     const puzzle = currentPuzzle();
     const last = chain[chain.length - 1];
-    const next = nextHintWord(last, puzzle.end, chain);
+    // Prefer a route that avoids words you've already tried; since words can
+    // be reused now, fall back to any shortest route rather than leave the
+    // player with nothing after they watched an ad.
+    const next = nextHintWord(last, puzzle.end, chain) || nextHintWord(last, puzzle.end, []);
     if (!next) {
       setFeedback("No hint available from here — try backtracking.");
       el.hintBtn.disabled = won;
@@ -812,7 +1016,7 @@ function startHintFlow() {
     }
     hintPosition = idx;
     hintCount++;
-    bumpStat(mode === "daily" ? "dailyHints" : "practiceHints");
+    bumpStat(mode === "daily" ? "dailyHints" : mode === "archive" ? "archiveHints" : "practiceHints");
     setFeedback("Hint: look at the highlighted letter.");
     saveProgress();
     render();
@@ -845,18 +1049,68 @@ el.helpBackdrop.addEventListener("click", (e) => {
 
 function renderStats() {
   const s = getStats();
+  const streaks = getStreaks();
   el.statsBody.innerHTML = "";
+
+  const grid = document.createElement("div");
+  grid.className = "stat-grid";
   [
-    ["Daily puzzles solved", s.dailyCompleted],
-    ["Daily hints used", s.dailyHints],
-    ["Practice puzzles solved", s.practiceCompleted],
-    ["Practice hints used", s.practiceHints],
-  ].forEach(([label, val]) => {
-    const p = document.createElement("p");
-    p.className = "help-text";
-    p.textContent = label + ": " + val;
-    el.statsBody.appendChild(p);
+    [s.dailyCompleted, "Dailies solved"],
+    [streaks.current, "Current streak"],
+    [streaks.best, "Best streak"],
+    [s.practiceCompleted + s.archiveCompleted, "Practice + archive"],
+  ].forEach(([num, cap]) => {
+    const cell = document.createElement("div");
+    cell.className = "stat-cell";
+    const n = document.createElement("div");
+    n.className = "stat-num";
+    n.textContent = num;
+    const c = document.createElement("div");
+    c.className = "stat-cap";
+    c.textContent = cap;
+    cell.append(n, c);
+    grid.appendChild(cell);
   });
+  el.statsBody.appendChild(grid);
+
+  const head = document.createElement("p");
+  head.className = "stats-section";
+  head.textContent = "Daily steps vs par";
+  el.statsBody.appendChild(head);
+
+  const dist = document.createElement("div");
+  dist.className = "dist";
+  const counts = DIST_KEYS.map(k => s.dailyDist[k]);
+  const max = Math.max(1, ...counts);
+  ["Par", "+1", "+2", "+3", "+4"].forEach((label, i) => {
+    const row = document.createElement("div");
+    row.className = "dist-row";
+    const l = document.createElement("span");
+    l.className = "dist-label";
+    l.textContent = label;
+    const bar = document.createElement("span");
+    bar.className = "dist-bar" + (i === 0 ? " is-par" : "");
+    bar.style.width = Math.round((counts[i] / max) * 100) + "%";
+    bar.textContent = counts[i];
+    row.append(l, bar);
+    dist.appendChild(row);
+  });
+  el.statsBody.appendChild(dist);
+  if (s.dailyCompleted > counts.reduce((a, b) => a + b, 0)) {
+    const note = document.createElement("p");
+    note.className = "stat-cap";
+    note.textContent = "Chart counts dailies solved since version 1.1.";
+    note.style.margin = "-10px 0 14px";
+    el.statsBody.appendChild(note);
+  }
+
+  const hints = document.createElement("p");
+  hints.className = "help-text";
+  hints.textContent = "Hints used: " + s.dailyHints + " daily · " + (s.practiceHints + s.archiveHints) + " practice/archive";
+  el.statsBody.appendChild(hints);
+
+  el.nameLabel.textContent = "Leaderboard name: " + (getPlayerName() || "not set");
+  renderReminderSettings();
 }
 
 el.statsBtn.addEventListener("click", () => { renderStats(); el.statsBackdrop.hidden = false; });
@@ -878,6 +1132,55 @@ function switchMode(next) {
 
 el.tabDaily.addEventListener("click", () => switchMode("daily"));
 el.tabPractice.addEventListener("click", () => switchMode("practice"));
+el.tabArchive.addEventListener("click", () => {
+  if (archive) switchMode("archive");
+  else openArchivePicker();
+});
+
+function openArchivePicker() {
+  el.archiveList.innerHTML = "";
+  if (daily.idx === 0) {
+    const li = document.createElement("li");
+    li.className = "help-text";
+    li.textContent = "No past dailies yet — check back tomorrow.";
+    el.archiveList.appendChild(li);
+  }
+  for (let idx = daily.idx - 1; idx >= 0; idx--) {
+    const entry = dailyEntry(idx);
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    const label = document.createElement("span");
+    label.textContent = "#" + (idx + 1) + " · " + dayDateLabel(idx);
+    const status = document.createElement("span");
+    status.className = "archive-status";
+    if (entry && entry.won) {
+      status.textContent = "✓ " + (entry.chain.length - 1) + " steps";
+      status.classList.add("is-done");
+    } else if (entry && entry.chain && entry.chain.length > 1) {
+      status.textContent = "in progress";
+    }
+    btn.append(label, status);
+    btn.addEventListener("click", () => selectArchiveDay(idx));
+    li.appendChild(btn);
+    el.archiveList.appendChild(li);
+  }
+  el.archiveBackdrop.hidden = false;
+}
+
+function selectArchiveDay(idx) {
+  el.archiveBackdrop.hidden = true;
+  archive = dailyPuzzleFor(idx);
+  mode = "archive";
+  loadProgress();
+  setFeedback("");
+  render();
+}
+
+el.chooseDayBtn.addEventListener("click", openArchivePicker);
+el.closeArchive.addEventListener("click", () => { el.archiveBackdrop.hidden = true; });
+el.archiveBackdrop.addEventListener("click", (e) => {
+  if (e.target === el.archiveBackdrop) el.archiveBackdrop.hidden = true;
+});
 
 el.diffBtns.forEach(btn => {
   btn.addEventListener("click", () => {
@@ -904,11 +1207,118 @@ function newPracticePuzzle() {
 }
 
 el.newPuzzleBtn.addEventListener("click", newPracticePuzzle);
-el.playAgainBtn.addEventListener("click", newPracticePuzzle);
+el.playAgainBtn.addEventListener("click", () => {
+  if (mode === "archive") openArchivePicker();
+  else newPracticePuzzle();
+});
+
+// --- Daily reminder (native app only; the web has no local notifications) ---
+function getNotificationsPlugin() {
+  return (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() &&
+    window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null;
+}
+
+function getReminderSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem("rungs:reminder"));
+    if (s && typeof s.on === "boolean" && /^\d\d:\d\d$/.test(s.time)) return s;
+  } catch (e) { /* fall through */ }
+  return { on: false, time: "19:00" };
+}
+
+function saveReminderSettings(s) {
+  try { localStorage.setItem("rungs:reminder", JSON.stringify(s)); } catch (e) { /* fine */ }
+}
+
+function renderReminderSettings() {
+  el.reminderRow.hidden = !getNotificationsPlugin();
+  const s = getReminderSettings();
+  el.reminderToggle.checked = s.on;
+  el.reminderTime.value = s.time;
+}
+
+const REMINDER_IDS = [101, 102, 103, 104, 105, 106, 107];
+
+// Re-plans the next week of reminders every time the app opens, so a day
+// you've already solved is skipped, and someone who stops playing gets at
+// most a week of nudges rather than reminders forever.
+async function scheduleReminders() {
+  const LN = getNotificationsPlugin();
+  if (!LN) return;
+  try {
+    await LN.cancel({ notifications: REMINDER_IDS.map(id => ({ id })) });
+    const s = getReminderSettings();
+    if (!s.on) return;
+    const [hh, mm] = s.time.split(":").map(Number);
+    const now = Date.now();
+    const streak = getStreaks().current;
+    const notifications = [];
+    for (let d = 0; d < REMINDER_IDS.length; d++) {
+      const at = new Date();
+      at.setDate(at.getDate() + d);
+      at.setHours(hh, mm, 0, 0);
+      if (at.getTime() <= now + 60000) continue;
+      const idxAt = Math.floor((at.getTime() - EPOCH.getTime()) / 86400000);
+      if (wonOnTheDay(idxAt)) continue;
+      const body = notifications.length === 0 && streak > 0
+        ? "Keep your " + streak + "-day streak alive. Today's ladder is ready."
+        : "Today's word ladder is ready. Can you match par?";
+      notifications.push({
+        id: REMINDER_IDS[d], title: "Rungs", body,
+        schedule: { at, allowWhileIdle: true },
+        // A reminder a few minutes late is fine; exact alarms would send the
+        // player to a system settings screen on Android 12+.
+        isExactNotification: false,
+        autoCancel: true,
+      });
+    }
+    if (notifications.length) await LN.schedule({ notifications });
+  } catch (e) { /* notifications are a nicety; never break the game over them */ }
+}
+
+el.reminderToggle.addEventListener("change", async () => {
+  const LN = getNotificationsPlugin();
+  const s = getReminderSettings();
+  el.reminderError.hidden = true;
+  if (el.reminderToggle.checked && LN) {
+    let perm = null;
+    try { perm = await LN.requestPermissions(); } catch (e) { /* treated as denied */ }
+    if (!perm || perm.display !== "granted") {
+      el.reminderToggle.checked = false;
+      el.reminderError.textContent = "Notifications are turned off for Rungs in your phone's settings.";
+      el.reminderError.hidden = false;
+      return;
+    }
+  }
+  s.on = el.reminderToggle.checked;
+  saveReminderSettings(s);
+  scheduleReminders();
+});
+
+el.reminderTime.addEventListener("change", () => {
+  if (!/^\d\d:\d\d$/.test(el.reminderTime.value)) return;
+  const s = getReminderSettings();
+  s.time = el.reminderTime.value;
+  saveReminderSettings(s);
+  scheduleReminders();
+});
+
+// The app can sit in the background across midnight UTC; pick up the new
+// daily (and refresh reminders) when it comes back to the foreground.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (dayIndex() !== daily.idx) {
+    daily = dailyPuzzle();
+    if (mode === "daily") { loadProgress(); setFeedback(""); }
+    render();
+  }
+  scheduleReminders();
+});
 
 loadProgress();
 render();
 ensureAdMobInitialized();
+scheduleReminders();
 
 if (!localStorage.getItem("rungs:seenHelp")) {
   localStorage.setItem("rungs:seenHelp", "1");
