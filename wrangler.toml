@@ -1,6 +1,8 @@
 name = "word-ladder"
 main = "worker/index.js"
 compatibility_date = "2024-09-23"
+# Keep the free workers.dev address alive alongside the custom domain.
+workers_dev = true
 
 [assets]
 directory = "./files"
@@ -10,3 +12,9 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "rungs-leaderboard"
 database_id = "64196fc9-2180-4d00-bf8b-0098cb2867e4"
+
+# Served on the studio domain too. The workers.dev address keeps working, and the
+# published Android app still points its leaderboard API there.
+[[routes]]
+pattern = "rungs.cowtippersgames.com"
+custom_domain = true
