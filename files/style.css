@@ -354,6 +354,8 @@ button {
 }
 .help-text { font-size: 14px; line-height: 1.6; color: var(--text-lo); margin: 0 0 14px; }
 .help-text:last-of-type { margin-bottom: 18px; }
+.help-links { font-size: 13px; }
+.help-links a { color: var(--accent); }
 #closeHelp { height: 38px; padding: 0 18px; background: var(--accent); color: var(--ink); width: 100%; }
 
 .modal-input {

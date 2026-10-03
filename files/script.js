@@ -360,6 +360,8 @@ const el = {
   reminderToggle: document.getElementById("reminderToggle"),
   reminderTime: document.getElementById("reminderTime"),
   reminderError: document.getElementById("reminderError"),
+  privacyChoicesRow: document.getElementById("privacyChoicesRow"),
+  privacyChoicesBtn: document.getElementById("privacyChoicesBtn"),
 };
 
 function currentPuzzle() {
@@ -928,8 +930,37 @@ async function ensureAdMobInitialized() {
   try {
     await AdMob.initialize({ testingDevices: ADMOB_TEST_DEVICE_IDS });
     adMobReady = true;
-  } catch (e) { /* leave adMobReady false; each hint attempt just retries initialize-adjacent calls */ }
+  } catch (e) { return; /* leave adMobReady false; each hint attempt retries */ }
+  await gatherAdConsent(AdMob);
 }
+
+// Google requires a certified consent message before showing ads to players
+// in the EEA, UK and Switzerland. Google's consent SDK decides per player
+// whether it's needed (the message itself is configured in AdMob under
+// Privacy & messaging); everywhere else this finishes with no popup.
+let adConsent = null; // last consent info from the SDK
+// For testing only: { debugGeography: 1 /* EEA */, testDeviceIdentifiers: ["..."] }
+const CONSENT_DEBUG = null;
+
+async function gatherAdConsent(AdMob) {
+  try {
+    let info = await AdMob.requestConsentInfo(CONSENT_DEBUG || undefined);
+    if (info.isConsentFormAvailable && info.status === "REQUIRED") {
+      info = await AdMob.showConsentForm();
+    }
+    adConsent = info;
+  } catch (e) { /* never block the game over consent plumbing */ }
+  el.privacyChoicesRow.hidden = !(adConsent && adConsent.privacyOptionsRequirementStatus === "REQUIRED");
+}
+
+el.privacyChoicesBtn.addEventListener("click", async () => {
+  const AdMob = getAdMobPlugin();
+  if (!AdMob) return;
+  try {
+    await AdMob.showPrivacyOptionsForm();
+    adConsent = await AdMob.requestConsentInfo(CONSENT_DEBUG || undefined);
+  } catch (e) { /* form unavailable right now; nothing to change */ }
+});
 
 // Real ad on native (Capacitor AdMob plugin); simulated countdown on the web,
 // since there's no equivalent web ad SDK in scope. Either way, `onComplete`
@@ -989,6 +1020,13 @@ async function showRealRewardedAd(AdMob, onComplete) {
     }));
 
     await ensureAdMobInitialized();
+    // Ads may only be requested once Google's consent SDK says so; if the
+    // player dismissed the consent form earlier, offer it again now.
+    if (adConsent && !adConsent.canRequestAds) await gatherAdConsent(AdMob);
+    if (adConsent && !adConsent.canRequestAds) {
+      failClosed("Hints need an ad, and ads need your privacy choice first.");
+      return;
+    }
     await AdMob.prepareRewardVideoAd({ adId: ADMOB_REWARDED_AD_UNIT_ID, isTesting: false });
     await AdMob.showRewardVideoAd();
   } catch (e) {
