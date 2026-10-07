@@ -1,0 +1,269 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@700&display=block" rel="stylesheet">
+<style>
+:root{
+  --ink:#1B1F2A; --ink-raised:#232838; --paper:#E4E7E2; --paper-dim:#C9CEC5; --rail:#556273;
+  --accent:#C98A3E; --success:#4F7A5B; --text-hi:#F2F1EC; --text-lo:#9AA1AC;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--ink);overflow:hidden}
+#stage{position:relative;width:var(--w);height:var(--h);background:
+  radial-gradient(ellipse 70% 55% at 70% 45%, rgba(201,138,62,.10), transparent 70%),
+  radial-gradient(ellipse 60% 50% at 20% 90%, rgba(85,98,115,.18), transparent 70%), var(--ink);
+  color:var(--text-hi);font-family:Inter,sans-serif;overflow:hidden;
+  display:grid;}
+/* ---------- layouts ---------- */
+.portrait{grid-template-rows:auto auto minmax(0,1fr) auto;padding:calc(var(--u)*9) calc(var(--u)*8) calc(var(--u)*8);row-gap:calc(var(--u)*4);justify-items:center;text-align:center}
+.square{grid-template-rows:auto auto minmax(0,1fr) auto;padding:calc(var(--u)*6) calc(var(--u)*7);row-gap:calc(var(--u)*2.5);justify-items:center;text-align:center}
+.landscape{grid-template-columns:1.15fr 1fr;grid-template-rows:auto minmax(0,1fr) auto;padding:calc(var(--u)*9) calc(var(--u)*10);column-gap:calc(var(--u)*6)}
+.landscape .brand{grid-column:1;grid-row:1}
+.landscape .copy{grid-column:1;grid-row:2;align-self:center}
+.landscape .foot{grid-column:1;grid-row:3}
+.landscape .board{grid-column:2;grid-row:1/4;align-self:center;justify-self:center}
+
+.brand{display:flex;align-items:center;gap:calc(var(--u)*1.6);font-family:'Space Grotesk';font-weight:600;font-size:calc(var(--u)*var(--brandSize));letter-spacing:.02em}
+.brand svg{width:calc(var(--u)*var(--brandSize)*1.15);height:calc(var(--u)*var(--brandSize)*1.15);color:var(--accent)}
+.copy h1,.copy p{text-wrap:balance}
+.copy h1{font-family:'Space Grotesk';font-weight:700;font-size:calc(var(--u)*var(--h1Size));line-height:1.08;letter-spacing:-.01em}
+.copy p{margin-top:calc(var(--u)*1.8);font-size:calc(var(--u)*var(--subSize));color:var(--text-lo);line-height:1.35}
+.copy h1 em{font-style:normal;color:var(--accent)}
+.foot{font-size:calc(var(--u)*var(--footSize));color:var(--text-lo);letter-spacing:.02em}
+.foot b{color:var(--text-hi);font-weight:500}
+
+/* ---------- board ---------- */
+.board{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:0}
+.meta{font-family:'JetBrains Mono';font-weight:700;font-size:calc(var(--t)*.36);color:var(--text-lo);margin:0 0 calc(var(--t)*.45) calc(var(--t)*.9);letter-spacing:.04em}
+.meta .par{color:var(--accent)}
+.ladder{position:relative;padding-left:calc(var(--t)*.9)}
+.ladder::before{content:"";position:absolute;left:calc(var(--t)*.22);top:calc(var(--t)*.2);bottom:calc(var(--t)*.2);width:calc(var(--t)*.09);background:var(--railc,var(--rail));border-radius:9px}
+.rung{position:relative;display:flex;gap:calc(var(--t)*.15);height:var(--t);margin-bottom:calc(var(--t)*.3)}
+.rung:last-child{margin-bottom:0}
+.rung::before{content:"";position:absolute;left:calc(var(--t)*-.68);top:50%;width:calc(var(--t)*.5);height:calc(var(--t)*.09);background:var(--rail);transform:translateY(-50%)}
+.rung.solved::before,.rung.goal::before{background:var(--accent)}
+.tile{width:var(--t);height:var(--t);border-radius:calc(var(--t)*.18);background:var(--paper);color:var(--ink);
+  font-family:'JetBrains Mono';font-weight:700;font-size:calc(var(--t)*.5);display:flex;align-items:center;justify-content:center;position:relative}
+.rung.start .tile{background:var(--paper-dim)}
+.rung.goal .tile,.rung.blank .tile{background:transparent;border:calc(var(--t)*.06) dashed var(--rail);color:var(--text-lo)}
+.rung.blank .tile{color:var(--rail)}
+.rung.solved .tile{background:var(--accent);color:var(--ink);border:none}
+.tile .ring{position:absolute;inset:calc(var(--t)*-.09);border-radius:calc(var(--t)*.24);border:calc(var(--t)*.07) solid var(--accent);opacity:0}
+.inputrow{display:flex;gap:calc(var(--t)*.2);margin:calc(var(--t)*.55) 0 0 calc(var(--t)*.9);align-items:center}
+.inputbox{width:calc(var(--t)*3.6);height:var(--t);border:calc(var(--t)*.045) solid var(--rail);border-radius:calc(var(--t)*.2);background:var(--ink-raised);
+  display:flex;align-items:center;padding:0 calc(var(--t)*.3);font-family:'JetBrains Mono';font-weight:700;font-size:calc(var(--t)*.42);color:var(--text-hi);letter-spacing:.08em}
+.inputbox .ph{color:var(--text-lo);font-family:Inter;font-weight:400;letter-spacing:0}
+.caret{display:inline-block;width:calc(var(--t)*.05);height:calc(var(--t)*.5);background:var(--accent);margin-left:calc(var(--t)*.05)}
+.climb{height:var(--t);padding:0 calc(var(--t)*.45);border-radius:calc(var(--t)*.2);background:var(--accent);color:var(--ink);font-family:'Space Grotesk';font-weight:600;font-size:calc(var(--t)*.4);display:flex;align-items:center}
+.banner{position:absolute;left:50%;transform:translateX(-50%);padding:calc(var(--u)*1.6) calc(var(--u)*3.2);border-radius:999px;background:var(--success);color:var(--text-hi);
+  font-family:'Space Grotesk';font-weight:600;font-size:calc(var(--u)*var(--bannerSize));white-space:nowrap;opacity:0}
+/* ---------- end card / hero ---------- */
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--u)*2.4);background:var(--ink);opacity:0;text-align:center}
+.overlay svg{width:calc(var(--u)*var(--heroMark));height:calc(var(--u)*var(--heroMark));color:var(--accent)}
+.overlay .name{font-family:'Space Grotesk';font-weight:700;font-size:calc(var(--u)*var(--heroName));letter-spacing:.01em;line-height:1}
+.overlay .tag{font-size:calc(var(--u)*var(--subSize));color:var(--text-lo)}
+.overlay .cta{margin-top:calc(var(--u)*1.5);font-family:'Space Grotesk';font-weight:600;font-size:calc(var(--u)*var(--subSize));color:var(--accent)}
+.overlay .studio{position:absolute;bottom:calc(var(--u)*5);font-size:calc(var(--u)*var(--footSize));color:var(--text-lo);letter-spacing:.12em;text-transform:uppercase}
+</style></head>
+<body>
+<div id="stage">
+  <div class="brand" id="brand"><svg viewBox="0 0 24 24"><path d="M6 2v20M18 2v20M6 8h12M6 16h12" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg><span>Rungs</span></div>
+  <div class="copy" id="copy"><h1 id="h1"></h1><p id="sub"></p></div>
+  <div class="board" id="board">
+    <div class="meta" id="meta">COLD → WARM · <span class="par">PAR 4</span></div>
+    <div class="ladder" id="ladder"></div>
+    <div class="inputrow" id="inputrow"><div class="inputbox" id="inputbox"></div><div class="climb">Climb</div></div>
+  </div>
+  <div class="foot" id="foot"></div>
+  <div class="banner" id="banner"></div>
+  <div class="overlay" id="hero">
+    <svg viewBox="0 0 24 24"><path id="heroPath" d="M6 2v20M18 2v20M6 8h12M6 16h12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="0"/></svg>
+    <div class="name" id="heroName">Rungs</div>
+    <div class="tag" id="heroTag">A new word ladder every day</div>
+    <div class="cta" id="heroCta"></div>
+    <div class="studio">Cow Tippers</div>
+  </div>
+</div>
+<script>
+const Q = new URLSearchParams(location.search);
+const W = +Q.get('w'), H = +Q.get('h');
+const layout = W > H*1.2 ? 'landscape' : (H > W*1.2 ? 'portrait' : 'square');
+const u = Math.min(W, H) / 100;
+const S = document.getElementById('stage');
+S.classList.add(layout);
+const sizes = {
+  // tile is in units of u; landscape images are short, so everything scales off min(w,h)
+  portrait:  {tile:15.5, brandSize:6.2, h1Size:9.2, subSize:4.4, footSize:3.4, bannerSize:4.6, heroMark:26, heroName:15},
+  square:    {tile:10,   brandSize:4.6, h1Size:6.2, subSize:3.4, footSize:2.9, bannerSize:3.8, heroMark:24, heroName:13},
+  landscape: {tile:12,   brandSize:6.2, h1Size:9.6, subSize:4.6, footSize:3.6, bannerSize:4.6, heroMark:28, heroName:15},
+}[layout];
+S.style.setProperty('--w', W+'px'); S.style.setProperty('--h', H+'px'); S.style.setProperty('--u', u+'px');
+S.style.setProperty('--t', (sizes.tile*u)+'px');
+for (const k in sizes) S.style.setProperty('--'+k, sizes[k]);
+
+// cut=climb (default): COLD->WARM typed live.  cut=challenge: LOSE->FIND posed as a puzzle, then revealed.
+const CUT = Q.get('cut') || 'climb';
+const PATH = CUT === 'challenge' ? ['LOSE','LONE','LINE','FINE','FIND'] : ['COLD','CORD','CARD','WARD','WARM'];
+const START = PATH[0], GOAL = PATH[PATH.length-1];
+document.getElementById('meta').innerHTML = `${START} → ${GOAL} · <span class="par">PAR ${PATH.length-1}</span>`;
+const changedIdx = w => { const i = PATH.indexOf(w); if (i<=0) return -1; for (let k=0;k<4;k++) if (PATH[i][k]!==PATH[i-1][k]) return k; return -1; };
+const ladder = document.getElementById('ladder');
+const rows = PATH.map(() => {
+  const r = document.createElement('div'); r.className = 'rung';
+  const tiles = [0,1,2,3].map(() => { const t = document.createElement('div'); t.className='tile'; const s=document.createElement('span'); const ring=document.createElement('div'); ring.className='ring'; t.append(s, ring); r.append(t); return t; });
+  ladder.append(r); return {r, tiles};
+});
+const $ = id => document.getElementById(id);
+
+// state: {rows:[{word, kind, op, ring}], railAccent, input, inputOp, h1, sub, copyOp, foot, banner, bannerOp, heroOp, heroDraw, heroCta, boardOp, metaOp}
+function apply(st) {
+  rows.forEach((row, i) => {
+    const d = st.rows[i];
+    row.r.className = 'rung ' + d.kind;
+    row.r.style.opacity = d.op;
+    row.r.style.transform = `translateY(${(1-d.op)*18}px)`;
+    row.tiles.forEach((t, k) => {
+      t.firstChild.textContent = d.word ? d.word[k] : '?';
+      t.lastChild.style.opacity = (d.ring && k === changedIdx(d.word)) ? d.ring : 0;
+    });
+  });
+  ladder.style.setProperty('--railc', st.railAccent ? 'var(--accent)' : 'var(--rail)');
+  const ib = $('inputbox');
+  ib.innerHTML = st.input ? `<span>${st.input}</span><span class="caret"></span>` : `<span class="ph">Next word</span>`;
+  $('inputrow').style.display = st.showInput ? 'flex' : 'none';
+  $('inputrow').style.opacity = st.inputOp ?? 1;
+  $('h1').innerHTML = st.h1 || ''; $('sub').textContent = st.sub || '';
+  $('copy').style.opacity = st.copyOp ?? 1;
+  $('foot').innerHTML = st.foot || '';
+  $('board').style.opacity = st.boardOp ?? 1;
+  $('meta').style.opacity = st.metaOp ?? 1;
+  const b = $('banner'); b.textContent = st.banner || ''; b.style.opacity = st.bannerOp || 0;
+  // sit the badge where the input row was (it has faded out by the time the badge shows)
+  const ir = document.getElementById('inputrow').getBoundingClientRect();
+  if (ir.height) b.style.top = (ir.top + ir.height/2 - b.getBoundingClientRect().height/2) + 'px';
+  if (layout==='landscape') { const bd=document.getElementById('board').getBoundingClientRect(); b.style.left = (bd.left+bd.width/2)+'px'; }
+  $('hero').style.opacity = st.heroOp || 0;
+  $('heroPath').setAttribute('stroke-dashoffset', 100 - 100*(st.heroDraw ?? 1));
+  $('heroTag').textContent = st.heroTag || 'A new word ladder every day';
+  $('heroCta').textContent = st.heroCta || '';
+}
+
+const clamp = (x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease = x => { x=clamp(x); return x<.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2; };
+const ramp = (t,a,b) => ease((t-a)/(b-a));
+const window_ = (t,a,b,f=.35) => Math.min(ramp(t,a,a+f), 1-ramp(t,b-f,b));
+
+const FOOT = '<b>Free</b> on Google Play';
+
+// ---------- static scenes (images) ----------
+const SCENES = {
+  solved: () => ({
+    rows: PATH.map((w,i)=>({word:w, kind:'solved', op:1, ring:0})), railAccent:true, showInput:false,
+    h1: layout==='landscape' ? 'Change one letter<br>at a time.' : 'Change one letter at a time.',
+    sub: 'A fresh word ladder every day.', foot: FOOT,
+  }),
+  challenge: () => ({
+    rows: [{word:'COLD',kind:'start',op:1},{word:'CORD',kind:'',op:1,ring:1},{word:'',kind:'blank',op:1},{word:'',kind:'blank',op:1},{word:'WARM',kind:'goal',op:1}],
+    showInput:false,
+    h1: layout==='landscape' ? 'Can you turn<br><em>COLD</em> into <em>WARM</em>?' : 'Can you turn <em>COLD</em> into <em>WARM</em>?',
+    sub: 'One letter at a time. Every step a real word.', foot: FOOT,
+  }),
+  daily: () => ({
+    rows: [{word:'COLD',kind:'start',op:1},{word:'CORD',kind:'',op:1},{word:'CARD',kind:'',op:1},{word:'WARD',kind:'',op:1,ring:1},{word:'WARM',kind:'goal',op:1}],
+    showInput:false,
+    h1: layout==='landscape' ? 'A new word ladder<br>every day.' : 'A new word ladder every day.',
+    sub: 'Match par. Climb the daily leaderboard.', foot: FOOT,
+  }),
+};
+
+// ---------- video timeline ----------
+const DUR = 20;
+// [word, typeStart]; each word is typed over TYPE seconds and lands at +LAND
+const TYPE = CUT === 'challenge' ? 0.5 : 0.7, LAND = CUT === 'challenge' ? 0.65 : 0.95;
+const STEPS = CUT === 'challenge'
+  ? [['LONE', 7.0], ['LINE', 8.4], ['FINE', 9.8], ['FIND', 11.2]]
+  : [['CORD', 4.4], ['CARD', 6.6], ['WARD', 8.8], ['WARM', 11.0]];
+const em = w => `<em>${w}</em>`;
+const L = (a, b) => layout === 'landscape' ? `${a}<br>${b}` : `${a} ${b}`;
+const CAPS = CUT === 'challenge' ? [
+  [2.2, 4.8,  L('Can you turn', `${em(START)} into ${em(GOAL)}?`), 'One letter at a time. Every step a real word.'],
+  [4.8, 7.0,  L('Take a second.', `Par is ${em(PATH.length-1)}.`), 'Got it? Here’s the climb…'],
+  [7.0, 11.9, L('Change one letter', 'at a time.'), 'Every step has to be a real word.'],
+  [11.9,15.9, L('Solved in 4.', `Matched ${em('par')}!`), 'Par is the shortest possible climb.'],
+  [15.9,18.3, L('A new ladder', 'every day.'), 'Can you match par tomorrow?'],
+] : [
+  [2.2, 7.6,  L('Turn', `${em(START)} into ${em(GOAL)}.`), 'Change one letter at a time.'],
+  [7.6, 12.0, L('Every step is', 'a real word.'), 'No guessing letters. Just climb.'],
+  [12.0,15.9, L('Solved in 4.', `Matched ${em('par')}!`), 'Par is the shortest possible climb.'],
+  [15.9,18.3, L('A new ladder', 'every day.'), 'Daily leaderboard · Practice · Archive'],
+];
+function at(t) {
+  const st = {rows:[], showInput:true, foot: FOOT};
+  // board rows
+  st.rows.push({word:START, kind:'start', op:1});
+  let input = '';
+  STEPS.forEach(([w, t0], i) => {
+    const land = t0 + LAND;
+    if (t >= t0 && t < land) input = w.slice(0, Math.min(4, Math.floor((t-t0)/TYPE*4)+1));
+    const isGoal = i === STEPS.length-1;
+    if (isGoal) return;
+    const op = ramp(t, land, land+0.35);
+    const ring = t>=land ? Math.max(0, 1 - (t-land)/1.6) : 0;
+    st.rows.push({word: op>0 ? w : '', kind: op>0 ? '' : 'blank', op: op>0 ? op : 1, ring});
+  });
+  const solveT = STEPS[3][1] + LAND;
+  st.rows.push({word:GOAL, kind:'goal', op:1});
+  if (t >= solveT) {
+    // cascade the solved colour down the ladder
+    st.rows.forEach((r, i) => { if (t >= solveT + i*0.12) { r.kind = 'solved'; r.word = PATH[i]; } });
+    st.railAccent = t >= solveT + 0.5;
+    st.rows[4].ring = Math.max(0, 1 - (t-solveT)/1.6);
+  }
+  st.input = input;
+  st.inputOp = 1 - ramp(t, solveT, solveT+0.4);
+  // captions
+  const caps = CAPS;
+  const cap = caps.find(c => t >= c[0] && t < c[1]);
+  if (cap) { st.h1 = cap[2]; st.sub = cap[3]; st.copyOp = window_(t, cap[0], cap[1], 0.3); } else st.copyOp = 0;
+  st.banner = '★  Perfect climb'; st.bannerOp = window_(t, solveT+0.6, 15.9, 0.3);
+  st.boardOp = ramp(t, 2.2, 2.7); st.metaOp = st.boardOp;
+  // hero intro + end card
+  const intro = 1 - ramp(t, 1.9, 2.4);
+  const outro = ramp(t, 18.1, 18.6);
+  st.heroOp = Math.max(intro, outro);
+  st.heroDraw = t < 2.4 ? ramp(t, 0.1, 1.2) : 1;
+  st.heroTag = 'A new word ladder every day';
+  st.heroCta = t > 18 ? 'Free on Google Play' : '';
+  return st;
+}
+
+function fitTo(st) {
+  // shrink the tile until the board fits its grid cell with this exact text in place
+  const board = document.getElementById('board');
+  let t = sizes.tile*u;
+  for (let i=0; i<200; i++) {
+    S.style.setProperty('--t', t+'px');
+    apply(st);
+    const avail = layout==='landscape' ? H - 2*9*u : board.getBoundingClientRect().height;
+    const kids = [...board.children].filter(k => k.offsetParent !== null);
+    const top = Math.min(...kids.map(k => k.getBoundingClientRect().top));
+    const bottom = Math.max(...kids.map(k => k.getBoundingClientRect().bottom));
+    const right = Math.max(...kids.map(k => k.getBoundingClientRect().right));
+    const contentH = bottom - top, contentW = right - board.getBoundingClientRect().left;
+    if (contentH <= avail - 0.02*H && contentW <= board.parentElement.clientWidth) break;
+    t *= 0.97;
+  }
+  return t;
+}
+function fit() {
+  // video: fit once against the busiest frame (input row + two-line caption) so tiles never resize mid-video
+  const busiest = {...at(DUR*0.7), copyOp:1, boardOp:1, showInput:true,
+    h1: layout==='landscape' ? 'Solved in 4.<br>Matched <em>par</em>!' : 'Every step is a real word.', sub:'Daily leaderboard · Practice · Archive'};
+  window.tilePx = fitTo(busiest);
+}
+window.fitFor = () => {};
+window.renderScene = name => { fitTo(SCENES[name]()); };
+window.renderAt = t => apply(at(t));
+window.DUR = DUR;
+window.ready = document.fonts.ready.then(() => { fit(); return [...document.fonts].filter(f=>f.status==='loaded').map(f=>f.family+' '+f.weight); });
+</script>
+</body></html>
