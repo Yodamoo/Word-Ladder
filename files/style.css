@@ -319,6 +319,41 @@ button {
   color: var(--text-lo);
 }
 
+/* Quiet one-line invite to the testers group, inside the win card. */
+.tester-invite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(242, 241, 236, 0.1);
+}
+.tester-invite[hidden] { display: none; }
+.tester-text { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-lo); }
+.tester-text a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.tester-dismiss {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin-right: -8px;
+  background: transparent;
+  color: var(--text-lo);
+  font-size: 13px;
+  border-radius: 50%;
+}
+.tester-dismiss:hover { color: var(--text-hi); }
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-weight: 500;
+  border-radius: var(--radius);
+}
+.link-btn:hover { color: var(--text-hi); border-color: var(--text-lo); }
+
 .foot {
   padding: 14px 0 24px;
   font-size: 12px;

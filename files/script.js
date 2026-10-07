@@ -362,7 +362,61 @@ const el = {
   reminderError: document.getElementById("reminderError"),
   privacyChoicesRow: document.getElementById("privacyChoicesRow"),
   privacyChoicesBtn: document.getElementById("privacyChoicesBtn"),
+  testerInvite: document.getElementById("testerInvite"),
+  testerLink: document.getElementById("testerLink"),
+  testerDismiss: document.getElementById("testerDismiss"),
+  testerRow: document.getElementById("testerRow"),
+  testerRowLink: document.getElementById("testerRowLink"),
 };
+
+// --- Tester invite (Android only) ---
+// A gentle nudge toward the Cow Tippers testers group, which new games need for
+// Google Play's closed testing. Nothing is collected here: the link just opens a
+// page on our site, and joining happens on Google's side with the player's own
+// account. It shows only after a daily solve, only to players who've solved a few
+// dailies, on at most three different days, and never again once dismissed or tapped.
+const TESTER_KEY = "rungs:testerInvite";
+const TESTER_MIN_DAILIES = 3;
+const TESTER_MAX_DAYS = 3;
+
+function isAndroid() {
+  return /Android/i.test(navigator.userAgent || "");
+}
+
+function getTesterState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(TESTER_KEY));
+    if (s && typeof s === "object") return { shown: s.shown | 0, lastDay: typeof s.lastDay === "number" ? s.lastDay : -1, dismissed: !!s.dismissed };
+  } catch (e) { /* fall through */ }
+  return { shown: 0, lastDay: -1, dismissed: false };
+}
+
+function saveTesterState(s) {
+  try { localStorage.setItem(TESTER_KEY, JSON.stringify(s)); } catch (e) { /* fine */ }
+}
+
+function dismissTesterInvite() {
+  const s = getTesterState();
+  s.dismissed = true;
+  saveTesterState(s);
+  el.testerInvite.hidden = true;
+}
+
+function renderTesterInvite() {
+  let show = false;
+  if (won && mode === "daily" && isAndroid() && getStats().dailyCompleted >= TESTER_MIN_DAILIES) {
+    const s = getTesterState();
+    if (!s.dismissed && (s.lastDay === daily.idx || s.shown < TESTER_MAX_DAYS)) {
+      show = true;
+      if (s.lastDay !== daily.idx) { s.lastDay = daily.idx; s.shown++; saveTesterState(s); }
+    }
+  }
+  el.testerInvite.hidden = !show;
+}
+
+el.testerDismiss.addEventListener("click", dismissTesterInvite);
+// Tapping the link also retires the card (the link itself still opens normally).
+el.testerLink.addEventListener("click", dismissTesterInvite);
 
 function currentPuzzle() {
   if (mode === "daily") return daily.puzzle;
@@ -604,6 +658,7 @@ function render() {
   } else {
     el.winCard.hidden = true;
   }
+  renderTesterInvite();
 }
 
 let _routeCache = { key: null, route: null };
@@ -1149,6 +1204,7 @@ function renderStats() {
 
   el.nameLabel.textContent = "Leaderboard name: " + (getPlayerName() || "not set");
   renderReminderSettings();
+  el.testerRow.hidden = !isAndroid();
 }
 
 el.statsBtn.addEventListener("click", () => { renderStats(); el.statsBackdrop.hidden = false; });
