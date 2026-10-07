@@ -373,22 +373,25 @@ const el = {
 // A gentle nudge toward the Cow Tippers testers group, which new games need for
 // Google Play's closed testing. Nothing is collected here: the link just opens a
 // page on our site, and joining happens on Google's side with the player's own
-// account. It shows only after a daily solve, only to players who've solved a few
-// dailies, on at most three different days, and never again once dismissed or tapped.
+// account. It shows on the "solved" card after a player's first solve in any mode
+// (daily, practice or archive), then again after every five more solves, at most
+// five times in total, and never again once dismissed or tapped.
 const TESTER_KEY = "rungs:testerInvite";
-const TESTER_MIN_DAILIES = 3;
-const TESTER_MAX_DAYS = 3;
+const TESTER_EVERY = 5;  // solves between showings
+const TESTER_MAX_SHOWS = 5;
 
 function isAndroid() {
   return /Android/i.test(navigator.userAgent || "");
 }
 
+// lastTotal is the all-time solve count at the showing we last counted, so
+// re-rendering the same solved puzzle (or reopening the app on it) never counts twice.
 function getTesterState() {
   try {
     const s = JSON.parse(localStorage.getItem(TESTER_KEY));
-    if (s && typeof s === "object") return { shown: s.shown | 0, lastDay: typeof s.lastDay === "number" ? s.lastDay : -1, dismissed: !!s.dismissed };
+    if (s && typeof s === "object") return { shown: s.shown | 0, lastTotal: typeof s.lastTotal === "number" ? s.lastTotal : -1, dismissed: !!s.dismissed };
   } catch (e) { /* fall through */ }
-  return { shown: 0, lastDay: -1, dismissed: false };
+  return { shown: 0, lastTotal: -1, dismissed: false };
 }
 
 function saveTesterState(s) {
@@ -402,13 +405,23 @@ function dismissTesterInvite() {
   el.testerInvite.hidden = true;
 }
 
+function totalSolves() {
+  const st = getStats();
+  return st.dailyCompleted + st.practiceCompleted + st.archiveCompleted;
+}
+
 function renderTesterInvite() {
   let show = false;
-  if (won && mode === "daily" && isAndroid() && getStats().dailyCompleted >= TESTER_MIN_DAILIES) {
+  if (won && isAndroid()) {
+    const total = totalSolves();
     const s = getTesterState();
-    if (!s.dismissed && (s.lastDay === daily.idx || s.shown < TESTER_MAX_DAYS)) {
-      show = true;
-      if (s.lastDay !== daily.idx) { s.lastDay = daily.idx; s.shown++; saveTesterState(s); }
+    if (!s.dismissed) {
+      if (s.lastTotal === total) {
+        show = true; // the solve we already counted, drawn again
+      } else if (s.shown < TESTER_MAX_SHOWS && (s.shown === 0 || total - s.lastTotal >= TESTER_EVERY)) {
+        show = true;
+        s.lastTotal = total; s.shown++; saveTesterState(s);
+      }
     }
   }
   el.testerInvite.hidden = !show;
