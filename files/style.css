@@ -388,7 +388,8 @@ button {
 .promo-thumb { flex: none; width: 96px; height: 54px; border-radius: 6px; object-fit: cover; background: #0b1014; }
 .promo-words { display: flex; flex-direction: column; min-width: 0; }
 .promo-kicker { font-size: 11px; color: var(--text-lo); }
-.promo-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: #3fd8e6; }
+.promo-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: #3fd8e6; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
 .promo-text { font-size: 12px; line-height: 1.4; color: var(--text-lo); }
 .promo-link:hover .promo-text, .promo-link:focus-visible .promo-text { color: var(--text-hi); }
 
