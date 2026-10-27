@@ -367,6 +367,16 @@ const el = {
   testerDismiss: document.getElementById("testerDismiss"),
   testerRow: document.getElementById("testerRow"),
   testerRowLink: document.getElementById("testerRowLink"),
+  streakSaver: document.getElementById("streakSaver"),
+  streakSaverText: document.getElementById("streakSaverText"),
+  streakSaverActions: document.getElementById("streakSaverActions"),
+  streakSaveBtn: document.getElementById("streakSaveBtn"),
+  streakLetGoBtn: document.getElementById("streakLetGoBtn"),
+  nhyPromo: document.getElementById("nhyPromo"),
+  nhyPromoLink: document.getElementById("nhyPromoLink"),
+  nhyPromoText: document.getElementById("nhyPromoText"),
+  nhyPromoDismiss: document.getElementById("nhyPromoDismiss"),
+  adTitle: document.getElementById("adTitle"),
 };
 
 // --- Tester invite (Android only) ---
@@ -430,6 +440,60 @@ function renderTesterInvite() {
 el.testerDismiss.addEventListener("click", dismissTesterInvite);
 // Tapping the link also retires the card (the link itself still opens normally).
 el.testerLink.addEventListener("click", dismissTesterInvite);
+
+// --- "From the makers of Rungs" card for No Hands Yet ---
+// Our own PC game, not an ad network: just a link to its Steam page. It shows on
+// the solved card at most once a day, never alongside the testers invite, and
+// never again once dismissed or tapped. The stats window keeps a quiet link too.
+const NHY_KEY = "rungs:nhyPromo";                 // { day, solve, dismissed }
+const NHY_LAUNCH = Date.UTC(2026, 9, 29, 17, 0);  // Steam Early Access, 10:00 Pacific
+
+function localDayKey() {
+  const d = new Date();
+  return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+}
+
+function getNhyState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(NHY_KEY));
+    if (s && typeof s === "object") return s;
+  } catch (e) { /* fall through */ }
+  return {};
+}
+
+function retireNhyPromo() {
+  const s = getNhyState();
+  s.dismissed = true;
+  try { localStorage.setItem(NHY_KEY, JSON.stringify(s)); } catch (e) { /* fine */ }
+  el.nhyPromo.hidden = true;
+}
+
+function renderNhyPromo() {
+  let show = false;
+  if (won && el.testerInvite.hidden) {
+    const s = getNhyState();
+    const solve = storageKey() + "#" + totalSolves(); // this particular solve
+    if (!s.dismissed) {
+      if (s.solve === solve) {
+        show = true; // the same solved card, drawn again
+      } else if (s.day !== localDayKey()) {
+        show = true;
+        s.day = localDayKey(); s.solve = solve;
+        try { localStorage.setItem(NHY_KEY, JSON.stringify(s)); } catch (e) { /* fine */ }
+      }
+    }
+  }
+  el.nhyPromo.hidden = !show;
+  if (show) {
+    el.nhyPromoText.textContent = Date.now() >= NHY_LAUNCH
+      ? "A survivors-like roguelite for PC, out now in Early Access. See it on Steam →"
+      : "A survivors-like roguelite for PC, coming to Steam Oct 29. Wishlist it →";
+  }
+}
+
+el.nhyPromoDismiss.addEventListener("click", retireNhyPromo);
+// Tapping through retires it too (the link still opens normally).
+el.nhyPromoLink.addEventListener("click", retireNhyPromo);
 
 function currentPuzzle() {
   if (mode === "daily") return daily.puzzle;
@@ -557,18 +621,105 @@ function wonOnTheDay(idx) {
   return !!(e && e.won && !e.viaArchive);
 }
 
+// --- Streak saver ---
+// Miss one day and, the next day, you can watch an ad to keep your streak going.
+// A saved day keeps the run unbroken but doesn't add to it. Only a single missed
+// day can be saved, and only when the day before it was really played, so a
+// streak can't be kept alive without playing.
+const SAVES_KEY = "rungs:streakSaves";         // day indexes covered by a streak save
+const LET_GO_KEY = "rungs:streakSaveLetGo";    // the missed day the player chose to let go
+let streakSavedNote = null;                     // { text, until } brief confirmation in the card
+
+function getStreakSaves() {
+  try {
+    const a = JSON.parse(localStorage.getItem(SAVES_KEY));
+    return new Set(Array.isArray(a) ? a : []);
+  } catch (e) { return new Set(); }
+}
+
+function addStreakSave(idx) {
+  const saves = getStreakSaves();
+  saves.add(idx);
+  try { localStorage.setItem(SAVES_KEY, JSON.stringify([...saves].slice(-100))); } catch (e) { /* fine */ }
+}
+
 // Worked out from saved daily results rather than a stored counter, so a
-// missed day really does break the streak.
+// missed day really does break the streak (unless it was saved).
 function getStreaks() {
+  const saves = getStreakSaves();
+  const kept = (i) => wonOnTheDay(i) || saves.has(i);
   let current = 0;
-  for (let i = wonOnTheDay(daily.idx) ? daily.idx : daily.idx - 1; i >= 0 && wonOnTheDay(i); i--) current++;
+  for (let i = kept(daily.idx) ? daily.idx : daily.idx - 1; i >= 0 && kept(i); i--) {
+    if (wonOnTheDay(i)) current++;
+  }
   let best = 0, run = 0;
   for (let d = 0; d <= daily.idx; d++) {
-    run = wonOnTheDay(d) ? run + 1 : 0;
+    run = kept(d) ? run + (wonOnTheDay(d) ? 1 : 0) : 0;
     if (run > best) best = run;
   }
   return { current, best };
 }
+
+// The offer for today, or null: yesterday was missed, the day before was played,
+// and the streak that ended there is worth keeping (2+ days).
+function streakSaverOffer() {
+  const missed = daily.idx - 1;
+  if (missed < 1 || wonOnTheDay(missed)) return null;
+  const saves = getStreakSaves();
+  if (saves.has(missed) || !wonOnTheDay(missed - 1)) return null;
+  try { if (localStorage.getItem(LET_GO_KEY) === String(missed)) return null; } catch (e) { /* fine */ }
+  let run = 0;
+  for (let i = missed - 1; i >= 0 && (wonOnTheDay(i) || saves.has(i)); i--) if (wonOnTheDay(i)) run++;
+  return run >= 2 ? { missed, run } : null;
+}
+
+function renderStreakSaver() {
+  if (mode !== "daily") { el.streakSaver.hidden = true; return; }
+  if (streakSavedNote && Date.now() < streakSavedNote.until) {
+    el.streakSaverText.textContent = streakSavedNote.text;
+    el.streakSaverActions.hidden = true;
+    el.streakSaver.hidden = false;
+    return;
+  }
+  streakSavedNote = null;
+  const offer = streakSaverOffer();
+  el.streakSaver.hidden = !offer;
+  if (!offer) return;
+  el.streakSaverText.textContent = "🔥 You missed yesterday's puzzle. Keep your " + offer.run + "‑day streak going?";
+  el.streakSaverActions.hidden = false;
+  preloadRewardedAd(); // so the button plays straight away
+}
+
+el.streakSaveBtn.addEventListener("click", () => {
+  const offer = streakSaverOffer();
+  if (!offer) { render(); return; }
+  el.streakSaveBtn.disabled = true;
+  watchRewardedAd({
+    title: "Streak saver",
+    countdown: "Saving your streak in",
+    grant: (free) => {
+      addStreakSave(offer.missed);
+      el.streakSaveBtn.disabled = false;
+      streakSavedNote = {
+        text: (free ? "No ad was available, so this one's on us. " : "Streak saved! ") +
+          "Your " + offer.run + "‑day streak is safe 🔥",
+        until: Date.now() + 6000,
+      };
+      render();
+      setTimeout(render, 6100);
+    },
+    notFinished: () => {
+      el.streakSaveBtn.disabled = false;
+      setFeedback("The ad didn't finish, so your streak wasn't saved. You can try again.");
+    },
+  });
+});
+
+el.streakLetGoBtn.addEventListener("click", () => {
+  const offer = streakSaverOffer();
+  if (offer) { try { localStorage.setItem(LET_GO_KEY, String(offer.missed)); } catch (e) { /* fine */ } }
+  render();
+});
 
 function render() {
   const puzzle = currentPuzzle();
@@ -672,6 +823,8 @@ function render() {
     el.winCard.hidden = true;
   }
   renderTesterInvite();
+  renderNhyPromo();
+  renderStreakSaver();
 }
 
 let _routeCache = { key: null, route: null };
@@ -747,6 +900,7 @@ function addStep(word) {
   if (won && mode === "daily") scheduleReminders();
   render();
   if (won) celebrateWin();
+  else preloadRewardedAd(); // a puzzle underway is when a hint might be wanted
 }
 
 // Undo = stepping back onto the previous word of your current route. It's
@@ -1030,102 +1184,130 @@ el.privacyChoicesBtn.addEventListener("click", async () => {
   } catch (e) { /* form unavailable right now; nothing to change */ }
 });
 
-// Real ad on native (Capacitor AdMob plugin); simulated countdown on the web,
-// since there's no equivalent web ad SDK in scope. Either way, `onComplete`
-// only fires once the hint is actually earned.
-function showRewardedAd(onComplete) {
+// --- Rewarded ads (hints and streak saves) ---
+// One ad is loaded ahead of time, only once the player is likely to want one (a
+// puzzle is underway, or the streak saver is showing), so the button plays it
+// straight away. Nothing loads while offline or with Android's Data Saver on, and
+// a background load never shows a popup. When no ad can be shown at all (offline,
+// nothing to serve, an error), the player gets the reward anyway: the ad is our
+// ask, never their problem. A player who closes an ad early just doesn't get it.
+const AD_MAX_AGE_MS = 55 * 60 * 1000; // Google expires a loaded ad after an hour
+let rewardedReadyAt = 0;              // when the loaded ad finished loading; 0 = none
+let rewardedLoading = null;           // the in-flight load, so taps share it
+
+const isOffline = () => navigator.onLine === false;
+const saveDataOn = () => !!(navigator.connection && navigator.connection.saveData);
+const rewardedAdReady = () => rewardedReadyAt > 0 && Date.now() - rewardedReadyAt < AD_MAX_AGE_MS;
+
+// Resolves true once an ad is ready to play, false if none could be loaded.
+function loadRewardedAd() {
   const AdMob = getAdMobPlugin();
-  if (AdMob) {
-    showRealRewardedAd(AdMob, onComplete);
-    return;
+  if (!AdMob || !adMobReady || isOffline() || (adConsent && !adConsent.canRequestAds)) return Promise.resolve(false);
+  if (rewardedAdReady()) return Promise.resolve(true);
+  if (!rewardedLoading) {
+    rewardedLoading = AdMob.prepareRewardVideoAd({ adId: ADMOB_REWARDED_AD_UNIT_ID, isTesting: false })
+      .then(() => { rewardedReadyAt = Date.now(); return true; })
+      .catch(() => { rewardedReadyAt = 0; return false; })
+      .then((ok) => { rewardedLoading = null; return ok; });
   }
-  let secs = 3;
-  el.adCountdownText.textContent = "Hint in " + secs + "…";
-  el.adBackdrop.hidden = false;
-  const timer = setInterval(() => {
-    secs--;
-    if (secs <= 0) {
-      clearInterval(timer);
-      el.adBackdrop.hidden = true;
-      onComplete();
-    } else {
-      el.adCountdownText.textContent = "Hint in " + secs + "…";
-    }
-  }, 1000);
+  return rewardedLoading;
 }
 
-async function showRealRewardedAd(AdMob, onComplete) {
-  el.adCountdownText.textContent = "Loading ad…";
-  el.adBackdrop.hidden = false;
+// Background load: skipped whenever it could cost the player data they'd mind.
+function preloadRewardedAd() {
+  if (!getAdMobPlugin() || saveDataOn() || rewardedAdReady() || rewardedLoading) return;
+  loadRewardedAd();
+}
 
-  let earned = false;
-  let listeners = [];
-  const cleanup = () => { listeners.forEach(l => l.remove()); listeners = []; };
-  const failClosed = (message) => {
-    cleanup();
+// Plays an ad for a reward. `grant(free)` runs once it's earned, or right away
+// with free = true when no ad could be shown. `notFinished()` runs if the player
+// closed the ad before the end. On the web build (no ad SDK) it's a short countdown.
+async function watchRewardedAd({ title, countdown, grant, notFinished }) {
+  el.adTitle.textContent = title;
+  const AdMob = getAdMobPlugin();
+  if (!AdMob) {
+    let secs = 3;
+    el.adCountdownText.textContent = countdown + " " + secs + "…";
+    el.adBackdrop.hidden = false;
+    const timer = setInterval(() => {
+      secs--;
+      if (secs <= 0) { clearInterval(timer); el.adBackdrop.hidden = true; grant(false); }
+      else el.adCountdownText.textContent = countdown + " " + secs + "…";
+    }, 1000);
+    return;
+  }
+  if (isOffline()) { grant(true); return; } // no waiting on an ad that can't come
+
+  if (!rewardedAdReady()) {
+    el.adCountdownText.textContent = "Loading ad…";
+    el.adBackdrop.hidden = false;
+  }
+  let ok = false;
+  try {
+    await ensureAdMobInitialized();
+    // Ads may only be requested once Google's consent SDK says so; if the player
+    // dismissed the consent form earlier, offer it again now.
+    if (adConsent && !adConsent.canRequestAds) await gatherAdConsent(AdMob);
+    ok = await loadRewardedAd();
+  } catch (e) { ok = false; }
+  if (!ok) { el.adBackdrop.hidden = true; grant(true); return; }
+
+  let earned = false, settled = false, listeners = [];
+  const finish = (then) => {
+    if (settled) return;
+    settled = true;
+    listeners.forEach(l => l.remove());
     el.adBackdrop.hidden = true;
-    el.hintBtn.disabled = won;
-    setFeedback(message);
+    then();
   };
-
   try {
     listeners.push(await AdMob.addListener("onRewardedVideoAdReward", () => { earned = true; }));
     listeners.push(await AdMob.addListener("onRewardedVideoAdDismissed", () => {
-      cleanup();
-      el.adBackdrop.hidden = true;
-      if (earned) {
-        onComplete();
-      } else {
-        el.hintBtn.disabled = won;
-        setFeedback("Hint not unlocked — the ad wasn't finished.");
-      }
+      finish(() => (earned ? grant(false) : notFinished()));
     }));
-    listeners.push(await AdMob.addListener("onRewardedVideoAdFailedToLoad", () => {
-      failClosed("Couldn't load an ad right now — try again in a moment.");
-    }));
-    listeners.push(await AdMob.addListener("onRewardedVideoAdFailedToShow", () => {
-      failClosed("Couldn't show the ad right now — try again in a moment.");
-    }));
-
-    await ensureAdMobInitialized();
-    // Ads may only be requested once Google's consent SDK says so; if the
-    // player dismissed the consent form earlier, offer it again now.
-    if (adConsent && !adConsent.canRequestAds) await gatherAdConsent(AdMob);
-    if (adConsent && !adConsent.canRequestAds) {
-      failClosed("Hints need an ad, and ads need your privacy choice first.");
-      return;
-    }
-    await AdMob.prepareRewardVideoAd({ adId: ADMOB_REWARDED_AD_UNIT_ID, isTesting: false });
+    listeners.push(await AdMob.addListener("onRewardedVideoAdFailedToShow", () => finish(() => grant(true))));
+    rewardedReadyAt = 0; // a loaded ad plays once
     await AdMob.showRewardVideoAd();
   } catch (e) {
-    failClosed("Couldn't show the ad right now — try again in a moment.");
+    finish(() => grant(true));
   }
+}
+
+function giveHint(free) {
+  const puzzle = currentPuzzle();
+  const last = chain[chain.length - 1];
+  // Prefer a route that avoids words you've already tried; since words can
+  // be reused now, fall back to any shortest route rather than leave the
+  // player with nothing after they watched an ad.
+  const next = nextHintWord(last, puzzle.end, chain) || nextHintWord(last, puzzle.end, []);
+  if (!next) {
+    setFeedback("No hint available from here — try backtracking.");
+    el.hintBtn.disabled = won;
+    return;
+  }
+  let idx = -1;
+  for (let i = 0; i < last.length; i++) {
+    if (last[i] !== next[i]) { idx = i; break; }
+  }
+  hintPosition = idx;
+  hintCount++;
+  bumpStat(mode === "daily" ? "dailyHints" : mode === "archive" ? "archiveHints" : "practiceHints");
+  setFeedback(free ? "No ad was available, so this hint's on us. Look at the highlighted letter."
+                   : "Hint: look at the highlighted letter.");
+  saveProgress();
+  render();
 }
 
 function startHintFlow() {
   el.hintBtn.disabled = true;
-  showRewardedAd(() => {
-    const puzzle = currentPuzzle();
-    const last = chain[chain.length - 1];
-    // Prefer a route that avoids words you've already tried; since words can
-    // be reused now, fall back to any shortest route rather than leave the
-    // player with nothing after they watched an ad.
-    const next = nextHintWord(last, puzzle.end, chain) || nextHintWord(last, puzzle.end, []);
-    if (!next) {
-      setFeedback("No hint available from here — try backtracking.");
+  watchRewardedAd({
+    title: "Hint ad",
+    countdown: "Hint in",
+    grant: giveHint,
+    notFinished: () => {
       el.hintBtn.disabled = won;
-      return;
-    }
-    let idx = -1;
-    for (let i = 0; i < last.length; i++) {
-      if (last[i] !== next[i]) { idx = i; break; }
-    }
-    hintPosition = idx;
-    hintCount++;
-    bumpStat(mode === "daily" ? "dailyHints" : mode === "archive" ? "archiveHints" : "practiceHints");
-    setFeedback("Hint: look at the highlighted letter.");
-    saveProgress();
-    render();
+      setFeedback("Hint not unlocked — the ad wasn't finished.");
+    },
   });
 }
 
@@ -1368,7 +1550,7 @@ async function scheduleReminders() {
       const idxAt = Math.floor((at.getTime() - EPOCH.getTime()) / 86400000);
       if (wonOnTheDay(idxAt)) continue;
       const body = notifications.length === 0 && streak > 0
-        ? "Keep your " + streak + "-day streak alive. Today's ladder is ready."
+        ? "Keep your " + streak + "‑day streak alive. Today's ladder is ready."
         : "Today's word ladder is ready. Can you match par?";
       notifications.push({
         id: REMINDER_IDS[d], title: "Rungs", body,

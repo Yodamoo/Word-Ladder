@@ -40,6 +40,13 @@
       <button class="tab-btn" id="tabPractice" role="tab" aria-selected="false">Practice</button>
       <button class="tab-btn" id="tabArchive" role="tab" aria-selected="false">Archive</button>
     </div>
+    <div class="streak-saver" id="streakSaver" hidden>
+      <p class="streak-saver-text" id="streakSaverText"></p>
+      <div class="streak-saver-actions" id="streakSaverActions">
+        <button type="button" class="streak-save-btn" id="streakSaveBtn">🎬 Watch an ad to keep it</button>
+        <button type="button" class="streak-let-go" id="streakLetGoBtn">Let it go</button>
+      </div>
+    </div>
 
     <div class="difficulty-row" id="difficultyRow" hidden>
       <button class="diff-btn" data-diff="easy">Easy</button>
@@ -97,6 +104,17 @@
       <div class="tester-invite" id="testerInvite" hidden>
         <p class="tester-text">🧪 Want early access to our next game? <a id="testerLink" href="https://cowtippersgames.com/testers" target="_blank" rel="noopener noreferrer">Join our testers</a></p>
         <button type="button" class="tester-dismiss" id="testerDismiss" aria-label="Dismiss this suggestion">✕</button>
+      </div>
+      <div class="promo-card" id="nhyPromo" hidden>
+        <a class="promo-link" id="nhyPromoLink" href="https://store.steampowered.com/app/5353220" target="_blank" rel="noopener noreferrer">
+          <img class="promo-thumb" src="img/nhy-thumb.jpg" width="96" height="54" alt="">
+          <span class="promo-words">
+            <span class="promo-kicker">From the makers of Rungs</span>
+            <span class="promo-title">No Hands Yet</span>
+            <span class="promo-text" id="nhyPromoText"></span>
+          </span>
+        </a>
+        <button type="button" class="tester-dismiss" id="nhyPromoDismiss" aria-label="Hide this">✕</button>
       </div>
     </div>
   </main>
@@ -173,6 +191,10 @@
       <span class="help-text">Help test our next game</span>
       <a class="diff-btn link-btn" id="testerRowLink" href="https://cowtippersgames.com/testers" target="_blank" rel="noopener noreferrer">Learn more</a>
     </div>
+    <div class="settings-row" id="nhyRow">
+      <span class="help-text">Our PC game: No Hands Yet</span>
+      <a class="diff-btn link-btn" id="nhyRowLink" href="https://store.steampowered.com/app/5353220" target="_blank" rel="noopener noreferrer">See it on Steam</a>
+    </div>
     <button id="closeStats">Close</button>
   </div>
 </div>
@@ -192,6 +214,7 @@
     <p class="help-text">Turn the start word into the goal word, one letter at a time. Every step in between has to be a real word. Par is the shortest possible route — match it for the best result.</p>
     <p class="help-text">Example: CAT → COT → COG → DOG</p>
     <p class="help-text">Took a wrong turn? ↶ Undo steps back one word. It counts as a step, just like typing the word again.</p>
+    <p class="help-text">Stuck? Watch a short ad for a hint. Missed a day? The next day you can watch one to keep your streak going. Ads are always your choice, and if one won't load, the hint or save is free.</p>
     <p class="help-text help-links"><a href="https://cowtippersgames.com/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <button id="closeHelp">Got it</button>
   </div>

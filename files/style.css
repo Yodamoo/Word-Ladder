@@ -354,6 +354,44 @@ button {
 }
 .link-btn:hover { color: var(--text-hi); border-color: var(--text-lo); }
 
+/* Streak saver: a friendly offer at the top of the daily view the day after a miss. */
+.streak-saver {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--ink-raised);
+  border: 1px solid rgba(201, 138, 62, 0.35);
+  text-align: center;
+}
+.streak-saver[hidden] { display: none; }
+.streak-saver-text { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-hi); }
+.streak-saver-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+.streak-saver-actions[hidden] { display: none; }
+.streak-save-btn { height: 38px; padding: 0 14px; background: var(--accent); color: var(--ink); }
+.streak-save-btn:hover { background: #d99b52; }
+.streak-save-btn:disabled { opacity: 0.6; cursor: default; }
+.streak-let-go { height: 38px; padding: 0 14px; background: transparent; border: 1px solid var(--rail); color: var(--text-lo); }
+.streak-let-go:hover { color: var(--text-hi); }
+
+/* "From the makers of Rungs" card for No Hands Yet, inside the win card. */
+.promo-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(242, 241, 236, 0.1);
+  text-align: left;
+}
+.promo-card[hidden] { display: none; }
+.promo-link { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; color: inherit; }
+.promo-thumb { flex: none; width: 96px; height: 54px; border-radius: 6px; object-fit: cover; background: #0b1014; }
+.promo-words { display: flex; flex-direction: column; min-width: 0; }
+.promo-kicker { font-size: 11px; color: var(--text-lo); }
+.promo-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: #3fd8e6; }
+.promo-text { font-size: 12px; line-height: 1.4; color: var(--text-lo); }
+.promo-link:hover .promo-text, .promo-link:focus-visible .promo-text { color: var(--text-hi); }
+
 .foot {
   padding: 14px 0 24px;
   font-size: 12px;
