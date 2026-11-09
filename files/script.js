@@ -58,13 +58,34 @@ function bfsDistances(start) {
   return dist;
 }
 
+// Like bfsDistances, but never steps onto a blocked word (see BLOCKED_WORDS in
+// words.js), so comparing the two shows whether a clean shortest route exists.
+function cleanDistances(start) {
+  const dist = new Map([[start, 0]]);
+  const queue = [start];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const d = dist.get(cur);
+    for (const n of neighbors(cur)) {
+      if (!dist.has(n) && !BLOCKED_WORDS.has(n)) {
+        dist.set(n, d + 1);
+        queue.push(n);
+      }
+    }
+  }
+  return dist;
+}
+
 // Hint: the next word along a shortest path from `fromWord` to `goal`,
 // avoiding words already used in the chain (so it can't suggest a loop).
 // Recomputed from the player's current position rather than the original
-// puzzle path, so it stays valid even after detours.
+// puzzle path, so it stays valid even after detours. Never suggests a blocked
+// word: it takes the shortest clean route instead.
 function nextHintWord(fromWord, goal, usedWords) {
   if (fromWord === goal) return null;
   const blocked = new Set(usedWords);
+  BLOCKED_WORDS.forEach(w => blocked.add(w));
   blocked.delete(goal);
 
   const dist = new Map([[fromWord, 0]]);
@@ -158,13 +179,43 @@ function dailyStartWord(idx) {
   return _playableAllCache[j % _playableAllCache.length];
 }
 
+// From this day on, a daily never starts or ends on a blocked word and always has
+// a shortest route made only of clean words, so hints and the shortest-route line
+// stay clean too. Only the days that need it change; earlier days stay exactly as
+// they were played. Must match worker/game-logic.js exactly.
+const DAILY_CLEAN_FROM_DAY = 110;
+
+function cleanDailyStart(idx, start) {
+  if (idx < DAILY_CLEAN_FROM_DAY || !BLOCKED_WORDS.has(start)) return start;
+  const order = dailyStartOrder();
+  const at = order.indexOf(start);
+  for (let k = 1; k < order.length; k++) {
+    const w = order[(at + k) % order.length];
+    if (!BLOCKED_WORDS.has(w) && !DAILY_UNPLAYABLE_STARTS.has(w)) return w;
+  }
+  return start;
+}
+
+// Keeps the day's first pick when it's clean (so most days are untouched), and
+// otherwise keeps drawing from the same day-seeded RNG until one is.
+function cleanDailyGoal(start, goal, dist, candidates, rng) {
+  const clean = cleanDistances(start);
+  const ok = w => !BLOCKED_WORDS.has(w) && clean.get(w) === dist.get(w);
+  for (let tries = 0; !ok(goal) && tries < 50; tries++) goal = pick(rng, candidates);
+  if (!ok(goal)) {
+    const good = candidates.filter(ok);
+    if (good.length) goal = pick(rng, good);
+  }
+  return goal;
+}
+
 // Like generatePuzzle, but the start word is fixed (from dailyStartWord)
 // rather than randomly picked, so the daily challenge never repeats a start
 // word until the whole pool has cycled. Only the goal is chosen via the
 // day-seeded RNG, same as before.
 function generateDailyPuzzle(idx) {
   const pool = COMMON_BY_LENGTH[DAILY_LENGTHS[0]];
-  const start = dailyStartWord(idx);
+  const start = cleanDailyStart(idx, dailyStartWord(idx));
   const rng = mulberry32(idx + 1);
   const dist = bfsDistances(start);
 
@@ -177,7 +228,8 @@ function generateDailyPuzzle(idx) {
     }
   }
   if (candidates.length > 0) {
-    const goal = pick(rng, candidates);
+    let goal = pick(rng, candidates);
+    if (idx >= DAILY_CLEAN_FROM_DAY) goal = cleanDailyGoal(start, goal, dist, candidates, rng);
     return { start, end: goal, par: dist.get(goal) };
   }
   // Fallback: take whatever's reachable at the greatest distance we found.
@@ -197,16 +249,20 @@ function generatePuzzle(rng, lengths, parRange) {
     const pool = COMMON_BY_LENGTH[length];
     if (!pool || pool.length === 0) continue;
     const start = pick(rng, pool);
+    if (BLOCKED_WORDS.has(start)) continue;
     const dist = bfsDistances(start);
+    const clean = cleanDistances(start);
     lastDist = dist; lastStart = start;
+    // Clean goal with a clean shortest route, same rule as the dailies.
+    const ok = w => !BLOCKED_WORDS.has(w) && clean.get(w) === dist.get(w);
 
     let candidates = pool.filter(w =>
-      w !== start && dist.has(w) && dist.get(w) >= parRange[0] && dist.get(w) <= parRange[1]);
+      w !== start && dist.has(w) && dist.get(w) >= parRange[0] && dist.get(w) <= parRange[1] && ok(w));
 
     if (candidates.length === 0) {
       candidates = [];
       for (const [w, d] of dist) {
-        if (w !== start && d >= parRange[0] && d <= parRange[1]) candidates.push(w);
+        if (w !== start && d >= parRange[0] && d <= parRange[1] && ok(w)) candidates.push(w);
       }
     }
     if (candidates.length === 0) continue;
@@ -218,7 +274,7 @@ function generatePuzzle(rng, lengths, parRange) {
   if (lastDist) {
     let bestWord = null, bestDist = 0;
     for (const [w, d] of lastDist) {
-      if (w !== lastStart && d > bestDist) { bestDist = d; bestWord = w; }
+      if (w !== lastStart && d > bestDist && !BLOCKED_WORDS.has(w)) { bestDist = d; bestWord = w; }
     }
     if (bestWord) return { start: lastStart, end: bestWord, par: bestDist };
   }
@@ -248,6 +304,7 @@ function dayDateLabel(idx) {
 }
 
 // One shortest route (there are often several), shown after solving.
+// Shortest route that avoids blocked words (the start and goal are always allowed).
 function shortestPath(start, goal) {
   const prev = new Map([[start, null]]);
   const queue = [start];
@@ -256,7 +313,7 @@ function shortestPath(start, goal) {
     const cur = queue[qi++];
     if (cur === goal) break;
     for (const n of neighbors(cur)) {
-      if (!prev.has(n)) { prev.set(n, cur); queue.push(n); }
+      if (!prev.has(n) && (n === goal || !BLOCKED_WORDS.has(n))) { prev.set(n, cur); queue.push(n); }
     }
   }
   if (!prev.has(goal)) return null;
@@ -806,7 +863,9 @@ function render() {
     // Par is the shortest possible route, so matching it is the best result.
     el.winDetail.textContent = steps + " step" + (steps === 1 ? "" : "s") +
       " · par " + PAR + (steps <= PAR ? " · perfect!" : "") + hintPart;
-    const route = steps > PAR ? cachedShortestPath(puzzle) : null;
+    // Only shown when a clean route actually matches par.
+    const clean = steps > PAR ? cachedShortestPath(puzzle) : null;
+    const route = clean && clean.length - 1 === PAR ? clean : null;
     el.parRoute.hidden = !route;
     if (route) el.parRoute.textContent = "Shortest route: " + route.join(" → ");
     el.leaderboardBtn.hidden = mode !== "daily";
@@ -1426,6 +1485,10 @@ el.tabArchive.addEventListener("click", () => {
   else openArchivePicker();
 });
 
+// Past dailies (0-based day indexes) whose start or goal is a blocked word. They were
+// played before DAILY_CLEAN_FROM_DAY and can't change, so the archive just leaves them out.
+const ARCHIVE_HIDDEN_DAYS = new Set([16, 73, 76]); // #17, #74, #77
+
 function openArchivePicker() {
   el.archiveList.innerHTML = "";
   if (daily.idx === 0) {
@@ -1435,6 +1498,7 @@ function openArchivePicker() {
     el.archiveList.appendChild(li);
   }
   for (let idx = daily.idx - 1; idx >= 0; idx--) {
+    if (ARCHIVE_HIDDEN_DAYS.has(idx)) continue;
     const entry = dailyEntry(idx);
     const li = document.createElement("li");
     const btn = document.createElement("button");

@@ -2,7 +2,7 @@
 // Kept in sync by hand: DAILY_LENGTHS/DAILY_PAR_RANGE/EPOCH and the generation
 // algorithm must match the client exactly, or the server will compute a
 // different "canonical" daily puzzle than players are actually solving.
-import { WORDS } from "./words-data.js";
+import { WORDS, BLOCKED_WORDS } from "./words-data.js";
 
 // Must match files/script.js exactly, including the "Z" (explicit UTC) —
 // see the comment there for why it matters.
@@ -34,6 +34,24 @@ export function bfsDistances(start) {
     const d = dist.get(cur);
     for (const n of neighbors(cur)) {
       if (!dist.has(n)) {
+        dist.set(n, d + 1);
+        queue.push(n);
+      }
+    }
+  }
+  return dist;
+}
+
+// Like bfsDistances, but never steps onto a blocked word. Must match files/script.js.
+function cleanDistances(start) {
+  const dist = new Map([[start, 0]]);
+  const queue = [start];
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const d = dist.get(cur);
+    for (const n of neighbors(cur)) {
+      if (!dist.has(n) && !BLOCKED_WORDS.has(n)) {
         dist.set(n, d + 1);
         queue.push(n);
       }
@@ -115,9 +133,35 @@ function dailyStartWord(idx, commonByLength) {
   return _playableAllCache[j % _playableAllCache.length];
 }
 
+// Must match files/script.js's DAILY_CLEAN_FROM_DAY / cleanDailyStart() /
+// cleanDailyGoal() exactly.
+const DAILY_CLEAN_FROM_DAY = 110;
+
+function cleanDailyStart(idx, start, commonByLength) {
+  if (idx < DAILY_CLEAN_FROM_DAY || !BLOCKED_WORDS.has(start)) return start;
+  const order = dailyStartOrder(commonByLength);
+  const at = order.indexOf(start);
+  for (let k = 1; k < order.length; k++) {
+    const w = order[(at + k) % order.length];
+    if (!BLOCKED_WORDS.has(w) && !DAILY_UNPLAYABLE_STARTS.has(w)) return w;
+  }
+  return start;
+}
+
+function cleanDailyGoal(start, goal, dist, candidates, rng) {
+  const clean = cleanDistances(start);
+  const ok = w => !BLOCKED_WORDS.has(w) && clean.get(w) === dist.get(w);
+  for (let tries = 0; !ok(goal) && tries < 50; tries++) goal = pick(rng, candidates);
+  if (!ok(goal)) {
+    const good = candidates.filter(ok);
+    if (good.length) goal = pick(rng, good);
+  }
+  return goal;
+}
+
 export function canonicalDailyPuzzle(idx, commonByLength) {
   const pool = commonByLength[DAILY_LENGTHS[0]];
-  const start = dailyStartWord(idx, commonByLength);
+  const start = cleanDailyStart(idx, dailyStartWord(idx, commonByLength), commonByLength);
   const rng = mulberry32(idx + 1);
   const dist = bfsDistances(start);
 
@@ -130,7 +174,8 @@ export function canonicalDailyPuzzle(idx, commonByLength) {
     }
   }
   if (candidates.length > 0) {
-    const goal = pick(rng, candidates);
+    let goal = pick(rng, candidates);
+    if (idx >= DAILY_CLEAN_FROM_DAY) goal = cleanDailyGoal(start, goal, dist, candidates, rng);
     return { start, end: goal, par: dist.get(goal) };
   }
   let bestWord = null, bestDist = 0;
