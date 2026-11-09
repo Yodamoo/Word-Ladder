@@ -15,3 +15,6 @@ android/app/src/main/assets/capacitor.config.json
 
 android/keystore/
 android/keystore.properties
+
+# Ad generator scratch output (finished images are copied into store-assets/ads)
+store-assets/ads/generator/out/

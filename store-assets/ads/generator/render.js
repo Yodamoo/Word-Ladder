@@ -29,9 +29,9 @@ async function page(browser, w, h) {
       for (const [lay, [w, h]] of Object.entries(sizes)) {
         const p = await page(browser, w, h);
         await p.evaluate(() => window.fitFor(false));
-        for (const scene of ['solved', 'challenge', 'daily']) {
+        for (const scene of (process.env.SCENES || 'solved,challenge,daily').split(',')) {
           await p.evaluate(s => window.renderScene(s), scene);
-          const file = path.join(dir, `rungs_${lay}_${scene}_${w}x${h}.png`);
+          const file = path.join(dir, `${process.env.PREFIX || 'rungs'}_${lay}_${scene}_${w}x${h}.png`);
           await p.screenshot({ path: file });
           console.log(file);
         }

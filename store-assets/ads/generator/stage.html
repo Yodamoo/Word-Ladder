@@ -102,7 +102,8 @@ for (const k in sizes) S.style.setProperty('--'+k, sizes[k]);
 
 // cut=climb (default): COLD->WARM typed live.  cut=challenge: LOSE->FIND posed as a puzzle, then revealed.
 const CUT = Q.get('cut') || 'climb';
-const PATH = CUT === 'challenge' ? ['LOSE','LONE','LINE','FINE','FIND'] : ['COLD','CORD','CARD','WARD','WARM'];
+const PATH = CUT === 'challenge' ? ['LOSE','LONE','LINE','FINE','FIND']
+  : CUT === 'moon' ? ['MOON','MOAN','LOAN','LOAD','LOUD'] : ['COLD','CORD','CARD','WARD','WARM'];
 const START = PATH[0], GOAL = PATH[PATH.length-1];
 document.getElementById('meta').innerHTML = `${START} → ${GOAL} · <span class="par">PAR ${PATH.length-1}</span>`;
 const changedIdx = w => { const i = PATH.indexOf(w); if (i<=0) return -1; for (let k=0;k<4;k++) if (PATH[i][k]!==PATH[i-1][k]) return k; return -1; };
@@ -166,6 +167,24 @@ const SCENES = {
     showInput:false,
     h1: layout==='landscape' ? 'Can you turn<br><em>COLD</em> into <em>WARM</em>?' : 'Can you turn <em>COLD</em> into <em>WARM</em>?',
     sub: 'One letter at a time. Every step a real word.', foot: FOOT,
+  }),
+  // November 2026 set (second ad group): streaks, no pop-ups, a fresh puzzle. Use with cut=moon.
+  streak: () => ({
+    rows: PATH.map((w,i)=>({word:w, kind:'solved', op:1, ring:0})), railAccent:true, showInput:false,
+    h1: layout==='landscape' ? 'Keep your<br>streak <em>going</em>.' : 'Keep your streak <em>going</em>.',
+    sub: 'A new word ladder every day. Missed one? You can still save your streak.', foot: FOOT,
+  }),
+  noads: () => ({
+    rows: [{word:PATH[0],kind:'start',op:1},{word:PATH[1],kind:'',op:1},{word:PATH[2],kind:'',op:1,ring:1},{word:'',kind:'blank',op:1},{word:PATH[4],kind:'goal',op:1}],
+    showInput:false,
+    h1: layout==='landscape' ? 'No pop-up ads.<br><em>Just puzzles.</em>' : 'No pop-up ads. <em>Just puzzles.</em>',
+    sub: 'Ads only when you choose one, for a hint.', foot: FOOT,
+  }),
+  quick: () => ({
+    rows: [{word:PATH[0],kind:'start',op:1},{word:PATH[1],kind:'',op:1,ring:1},{word:'',kind:'blank',op:1},{word:'',kind:'blank',op:1},{word:PATH[4],kind:'goal',op:1}],
+    showInput:false,
+    h1: layout==='landscape' ? `Turn <em>${PATH[0]}</em><br>into <em>${PATH[4]}</em>.` : `Turn <em>${PATH[0]}</em> into <em>${PATH[4]}</em>.`,
+    sub: 'A quick brain workout every day. One letter at a time.', foot: FOOT,
   }),
   daily: () => ({
     rows: [{word:'COLD',kind:'start',op:1},{word:'CORD',kind:'',op:1},{word:'CARD',kind:'',op:1},{word:'WARD',kind:'',op:1,ring:1},{word:'WARM',kind:'goal',op:1}],
