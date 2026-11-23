@@ -355,13 +355,22 @@ let chain = [];
 let won = false;
 let hintCount = 0;
 let hintPosition = null; // index of the letter to change next, or null
+// The next rung being built: the tile the player picked, and the one letter they changed.
+let selectedPos = null;  // index of the selected tile in the next rung, or null
+let draft = null;        // { pos, letter } for the changed letter, or null
 let startedAt = Date.now(); // when the current puzzle attempt began, for daily timing
 let pendingSubmission = null; // { chain, hints, elapsedSeconds } awaiting a player name
 
 const el = {
   ladder: document.getElementById("ladder"),
   form: document.getElementById("guessForm"),
-  input: document.getElementById("guessInput"),
+  keyboard: document.getElementById("keyboard"),
+  winTitle: document.getElementById("winTitle"),
+  milestoneNote: document.getElementById("milestoneNote"),
+  stuckNudge: document.getElementById("stuckNudge"),
+  stuckHintBtn: document.getElementById("stuckHintBtn"),
+  stuckDismiss: document.getElementById("stuckDismiss"),
+  soundToggle: document.getElementById("soundToggle"),
   feedback: document.getElementById("feedback"),
   winCard: document.getElementById("winCard"),
   winDetail: document.getElementById("winDetail"),
@@ -596,6 +605,8 @@ function loadProgress() {
   won = false;
   hintCount = 0;
   hintPosition = null;
+  selectedPos = null;
+  draft = null;
   startedAt = Date.now();
   try {
     const raw = localStorage.getItem(storageKey());
@@ -760,6 +771,7 @@ el.streakSaveBtn.addEventListener("click", () => {
     title: "Streak saver",
     countdown: "Saving your streak in",
     grant: (free) => {
+      Sound.reward();
       addStreakSave(offer.missed);
       el.streakSaveBtn.disabled = false;
       streakSavedNote = {
@@ -841,6 +853,7 @@ function bankFreeze(button) {
     title: "Streak freeze",
     countdown: "Banking a freeze in",
     grant: (free) => {
+      Sound.reward();
       setFreezes(getFreezes() + 1);
       button.disabled = false;
       render();
@@ -916,6 +929,29 @@ function render() {
   });
 
   if (!won) {
+    const latestWord = chain[chain.length - 1];
+    const draftRow = document.createElement("div");
+    draftRow.className = "rung is-draft";
+    draftRow.id = "draftRung";
+    latestWord.split("").forEach((ch, ti) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tile draft-tile";
+      const letter = draft && draft.pos === ti ? draft.letter : ch;
+      if (draft && draft.pos === ti) b.classList.add("is-changed");
+      if (selectedPos === ti) b.classList.add("is-selected");
+      if (hintPosition === ti) b.classList.add("is-hint-letter");
+      b.textContent = letter;
+      b.setAttribute("aria-label", "Letter " + (ti + 1) + ", " + letter + (selectedPos === ti ? ", selected" : ", tap to change"));
+      b.addEventListener("click", () => selectTile(ti));
+      draftRow.appendChild(b);
+    });
+    const draftTag = document.createElement("span");
+    draftTag.className = "rung-tag";
+    draftTag.textContent = selectedPos === null ? "tap a letter" : (draft ? "tap Climb" : "pick a letter");
+    draftRow.appendChild(draftTag);
+    el.ladder.appendChild(draftRow);
+
     const goalRow = document.createElement("div");
     goalRow.className = "rung is-goal";
     for (const ch of GOAL) {
@@ -943,6 +979,10 @@ function render() {
     // Par is the shortest possible route, so matching it is the best result.
     el.winDetail.textContent = steps + " step" + (steps === 1 ? "" : "s") +
       " · par " + PAR + (steps <= PAR ? " · perfect!" : "") + hintPart;
+    const milestone = milestoneNow();
+    el.winTitle.textContent = milestone ? "🔥 " + milestone + "‑day streak!" : "Solved!";
+    el.milestoneNote.hidden = !milestone;
+    if (milestone) el.milestoneNote.textContent = MILESTONE_LINES[milestone];
     // Only shown when a clean route actually matches par.
     const clean = steps > PAR ? cachedShortestPath(puzzle) : null;
     const route = clean && clean.length - 1 === PAR ? clean : null;
@@ -961,6 +1001,8 @@ function render() {
   } else {
     el.winCard.hidden = true;
   }
+  renderKeyboard();
+  renderStuckNudge();
   renderFreezeOffer();
   renderTesterInvite();
   renderNhyPromo();
@@ -981,6 +1023,7 @@ function celebrateWin() {
   card.classList.remove("is-popping");
   void card.offsetWidth; // force reflow so the animation restarts every win
   card.classList.add("is-popping");
+  if (milestoneNow()) Sound.milestone(); else Sound.solve();
   if (navigator.vibrate) navigator.vibrate([40, 30, 60]);
 }
 
@@ -995,29 +1038,244 @@ function setFeedback(msg) {
   el.feedback.textContent = msg;
 }
 
-el.form.addEventListener("submit", (e) => {
-  e.preventDefault();
+// --- Tap-to-change: pick a tile in the next rung, then a letter on the keyboard ---
+// Only one letter can differ from the current word: changing another tile puts
+// the first one back. Physical keyboards work too (letters, arrows, Enter, Backspace).
+const KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "<ZXCVBNM>"]; // < is ⌫ (put the letter back), > is Climb
+
+function buildKeyboard() {
+  el.keyboard.innerHTML = "";
+  KEY_ROWS.forEach((row, r) => {
+    const div = document.createElement("div");
+    div.className = "key-row" + (r === 1 ? " is-middle" : "");
+    for (const ch of row) {
+      const b = document.createElement("button");
+      b.type = "button";
+      if (ch === "<") {
+        b.className = "key key-wide";
+        b.textContent = "⌫";
+        b.setAttribute("aria-label", "Put the letter back");
+        b.addEventListener("click", revertDraft);
+      } else if (ch === ">") {
+        b.className = "key key-wide key-climb";
+        b.id = "climbKey";
+        b.textContent = "Climb";
+        b.addEventListener("click", climb);
+      } else {
+        b.className = "key";
+        b.dataset.key = ch;
+        b.textContent = ch;
+        b.addEventListener("click", () => pickLetter(ch));
+      }
+      div.appendChild(b);
+    }
+    el.keyboard.appendChild(div);
+  });
+}
+
+function renderKeyboard() {
   if (won) return;
+  const latest = chain[chain.length - 1];
+  const current = selectedPos === null ? null : latest[selectedPos];
+  el.keyboard.querySelectorAll(".key[data-key]").forEach(k => k.classList.toggle("is-current", k.dataset.key === current));
+  const climbKey = document.getElementById("climbKey");
+  if (climbKey) climbKey.classList.toggle("is-ready", !!draft);
+}
 
-  const guess = el.input.value.trim().toUpperCase();
+function shakeDraft() {
+  const row = document.getElementById("draftRung");
+  if (!row) return;
+  row.classList.remove("is-shaking");
+  void row.offsetWidth;
+  row.classList.add("is-shaking");
+}
+
+function selectTile(pos) {
+  if (won) return;
+  selectedPos = pos;
+  setFeedback("");
+  Sound.select();
+  render();
+}
+
+function pickLetter(letter) {
+  if (won) return;
+  if (selectedPos === null) {
+    if (hintPosition !== null) {
+      selectedPos = hintPosition;
+    } else {
+      setFeedback("First tap the letter you want to change in your next word.");
+      Sound.nope();
+      shakeDraft();
+      return;
+    }
+  }
+  const latest = chain[chain.length - 1];
+  if (letter === latest[selectedPos]) {
+    if (draft && draft.pos === selectedPos) draft = null; // back to the original letter
+  } else {
+    draft = { pos: selectedPos, letter };
+  }
+  setFeedback("");
+  Sound.tap();
+  render();
+}
+
+function revertDraft() {
+  if (won || !draft) return;
+  draft = null;
+  Sound.tap();
+  render();
+}
+
+function climb() {
+  if (won) return;
+  if (!draft) {
+    setFeedback(selectedPos === null ? "Tap the letter you want to change, then pick a new one." : "Now pick a new letter for it.");
+    Sound.nope();
+    shakeDraft();
+    return;
+  }
   const last = chain[chain.length - 1];
-
-  if (guess.length !== last.length) {
-    setFeedback("Word must be " + last.length + " letters.");
-    return;
-  }
-  if (!diffByOne(last, guess)) {
-    setFeedback("Change exactly one letter from " + last + ".");
-    return;
-  }
+  const guess = last.slice(0, draft.pos) + draft.letter + last.slice(draft.pos + 1);
   if (!WORDS.has(guess)) {
     setFeedback(guess + " isn't a valid word.");
+    Sound.nope();
+    shakeDraft();
     return;
   }
-
-  el.input.value = "";
+  draft = null;
+  selectedPos = null;
+  if (guess !== currentPuzzle().end) Sound.climb(effectivePathIndices(chain).length);
   addStep(guess);
+}
+
+el.form.addEventListener("submit", (e) => { e.preventDefault(); climb(); });
+
+document.addEventListener("keydown", (e) => {
+  if (won || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (document.querySelector(".modal-backdrop:not([hidden])")) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+  const n = chain[chain.length - 1].length;
+  if (/^[a-z]$/i.test(e.key)) { e.preventDefault(); pickLetter(e.key.toUpperCase()); }
+  else if (e.key === "Enter") { e.preventDefault(); climb(); }
+  else if (e.key === "Backspace") { e.preventDefault(); revertDraft(); }
+  else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    e.preventDefault();
+    const step = e.key === "ArrowLeft" ? -1 : 1;
+    selectTile(selectedPos === null ? (step < 0 ? n - 1 : 0) : (selectedPos + step + n) % n);
+  }
 });
+
+// --- Sound: small synthesized effects (no audio files), off with one switch ---
+const Sound = (() => {
+  let ctx = null;
+  let on = true;
+  try { on = localStorage.getItem("rungs:sound") !== "0"; } catch (e) { /* default on */ }
+  function audio() {
+    if (!on) return null;
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      try { ctx = new C(); } catch (e) { return null; }
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function tone(freq, start, dur, type, gain) {
+    const c = audio();
+    if (!c) return;
+    const t = c.currentTime + start;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  }
+  // C major pentatonic, so every climb sounds pleasant and rises rung by rung.
+  const SCALE = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760];
+  const note = (semis) => 523.25 * Math.pow(2, semis / 12);
+  return {
+    get on() { return on; },
+    set(v) { on = !!v; try { localStorage.setItem("rungs:sound", on ? "1" : "0"); } catch (e) { /* fine */ } },
+    tap() { tone(1250, 0, 0.045, "triangle", 0.02); },
+    select() { tone(880, 0, 0.06, "triangle", 0.025); },
+    climb(step) {
+      const f = SCALE[Math.max(0, Math.min(step - 1, SCALE.length - 1))];
+      tone(f, 0, 0.4, "sine", 0.08);
+      tone(f * 2, 0, 0.18, "triangle", 0.012);
+    },
+    nope() { tone(220, 0, 0.16, "triangle", 0.04); tone(196, 0.08, 0.2, "triangle", 0.035); },
+    undo() { tone(523.25, 0, 0.14, "sine", 0.045); tone(440, 0.08, 0.18, "sine", 0.04); },
+    solve() { [0, 4, 7, 12].forEach((s, i) => tone(note(s), i * 0.09, 0.55, "sine", 0.07)); tone(note(19), 0.38, 0.7, "triangle", 0.025); },
+    milestone() { [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => tone(note(s), i * 0.08, 0.6, "sine", 0.065)); },
+    reward() { tone(987.77, 0, 0.16, "sine", 0.05); tone(1318.51, 0.09, 0.32, "sine", 0.05); },
+  };
+})();
+
+el.soundToggle.addEventListener("change", () => {
+  Sound.set(el.soundToggle.checked);
+  if (el.soundToggle.checked) Sound.select();
+});
+
+// --- Streak milestones ---
+const MILESTONES = [7, 14, 30, 50, 100, 200, 365];
+const MILESTONE_LINES = {
+  7: "A full week of climbing. Nice!",
+  14: "Two weeks straight!",
+  30: "A whole month. Impressive!",
+  50: "Fifty days. Ladder legend.",
+  100: "One hundred days!",
+  200: "Two hundred days. Wow.",
+  365: "A full year of Rungs. Incredible.",
+};
+// The streak, when today's daily solve just reached a milestone; 0 otherwise.
+function milestoneNow() {
+  if (mode !== "daily" || !won || !wonOnTheDay(daily.idx)) return 0;
+  const s = getStreaks().current;
+  return MILESTONES.includes(s) ? s : 0;
+}
+
+// --- "Stuck?" nudge: after a while with no progress, point at the hint button ---
+// Once per puzzle per session, never after a hint, and only while the app is in view.
+const STUCK_AFTER_MS = 75000;
+let stuckTimer = null, stuckWatch = null, stuckShowing = null;
+const stuckSeen = new Set();
+const puzzleKey = () => { const p = currentPuzzle(); return mode + ":" + p.start + ">" + p.end; };
+
+function renderStuckNudge() {
+  const pk = puzzleKey();
+  const pos = pk + "#" + chain.length;
+  if (stuckShowing && stuckShowing !== pos) stuckShowing = null; // they made progress
+  el.stuckNudge.hidden = !(stuckShowing && !won && hintCount === 0);
+  if (won || hintCount > 0 || stuckSeen.has(pk)) {
+    clearTimeout(stuckTimer); stuckTimer = null; stuckWatch = null;
+    return;
+  }
+  if (stuckWatch === pos) return;
+  clearTimeout(stuckTimer);
+  stuckWatch = pos;
+  stuckTimer = setTimeout(() => {
+    stuckTimer = null;
+    const still = stuckWatch === puzzleKey() + "#" + chain.length;
+    const busy = document.visibilityState !== "visible" || document.querySelector(".modal-backdrop:not([hidden])");
+    if (!still || won || busy) { stuckWatch = null; return; }
+    stuckSeen.add(puzzleKey());
+    stuckShowing = stuckWatch;
+    stuckWatch = null;
+    preloadRewardedAd();
+    render();
+  }, STUCK_AFTER_MS);
+}
+
+el.stuckHintBtn.addEventListener("click", () => { stuckShowing = null; render(); el.hintBtn.click(); });
+el.stuckDismiss.addEventListener("click", () => { stuckShowing = null; render(); });
 
 function addStep(word) {
   chain.push(word);
@@ -1050,6 +1308,9 @@ el.undoBtn.addEventListener("click", () => {
   if (won) return;
   const onPath = effectivePathIndices(chain);
   if (onPath.length < 2) return;
+  draft = null;
+  selectedPos = null;
+  Sound.undo();
   addStep(chain[onPath[onPath.length - 2]]);
 });
 
@@ -1259,7 +1520,11 @@ el.shareBtn.addEventListener("click", () => {
     : mode === "archive" ? "Archive #" + (archive.idx + 1)
     : "Practice (" + DIFFICULTIES[difficulty].label + ")";
   const hintPart = hintCount > 0 ? ` · ${hintCount} hint${hintCount === 1 ? "" : "s"}` : "";
-  const text = `Rungs ${label} ${resultTag} ${steps}/${puzzle.par} steps${hintPart}\n${puzzle.start} → ${puzzle.end}`;
+  let text = `Rungs ${label} ${resultTag} ${steps}/${puzzle.par} steps${hintPart}\n${puzzle.start} → ${puzzle.end}`;
+  if (mode === "daily") {
+    const streak = getStreaks().current;
+    if (streak >= 2) text += `\n🔥 ${streak}-day streak`;
+  }
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => setFeedback("Result copied."));
   } else {
@@ -1430,6 +1695,9 @@ function giveHint(free) {
     if (last[i] !== next[i]) { idx = i; break; }
   }
   hintPosition = idx;
+  selectedPos = idx;
+  draft = null;
+  Sound.reward();
   hintCount++;
   bumpStat(mode === "daily" ? "dailyHints" : mode === "archive" ? "archiveHints" : "practiceHints");
   setFeedback(free ? "No ad was available, so this hint's on us. Look at the highlighted letter."
@@ -1500,6 +1768,7 @@ function renderStats() {
     grid.appendChild(cell);
   });
   el.statsBody.appendChild(grid);
+  renderCalendar(el.statsBody);
 
   const head = document.createElement("p");
   head.className = "stats-section";
@@ -1540,12 +1809,76 @@ function renderStats() {
   el.nameLabel.textContent = "Leaderboard name: " + (getPlayerName() || "not set");
   renderReminderSettings();
   el.testerRow.hidden = !isAndroid();
+  el.soundToggle.checked = Sound.on;
   const freezes = getFreezes();
   el.freezeStatsLabel.textContent = "🧊 Streak freezes: " + freezes + " of " + MAX_FREEZES;
   el.freezeStatsBtn.hidden = freezes >= MAX_FREEZES;
 }
 
-el.statsBtn.addEventListener("click", () => { renderStats(); el.statsBackdrop.hidden = false; });
+// --- Streak calendar: one month at a time, by daily-puzzle date ---
+let calMonthOffset = 0;
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function renderCalendar(parent) {
+  const today = new Date(EPOCH.getTime() + daily.idx * 86400000);
+  const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + calMonthOffset, 1));
+  const y = first.getUTCFullYear(), m = first.getUTCMonth();
+  const daysIn = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const saves = getStreakSaves();
+
+  const wrap = document.createElement("div");
+  wrap.className = "calendar";
+  const head = document.createElement("div");
+  head.className = "cal-head";
+  const prev = document.createElement("button");
+  prev.className = "cal-nav";
+  prev.textContent = "‹";
+  prev.setAttribute("aria-label", "Previous month");
+  prev.disabled = first.getTime() <= EPOCH.getTime();
+  prev.addEventListener("click", () => { calMonthOffset--; renderStats(); });
+  const title = document.createElement("span");
+  title.className = "cal-title";
+  title.textContent = MONTHS[m] + " " + y;
+  const next = document.createElement("button");
+  next.className = "cal-nav";
+  next.textContent = "›";
+  next.setAttribute("aria-label", "Next month");
+  next.disabled = calMonthOffset >= 0;
+  next.addEventListener("click", () => { calMonthOffset++; renderStats(); });
+  head.append(prev, title, next);
+  wrap.appendChild(head);
+
+  const grid = document.createElement("div");
+  grid.className = "cal-grid";
+  ["S", "M", "T", "W", "T", "F", "S"].forEach(d => {
+    const c = document.createElement("span");
+    c.className = "cal-dow";
+    c.textContent = d;
+    grid.appendChild(c);
+  });
+  for (let i = 0; i < first.getUTCDay(); i++) grid.appendChild(document.createElement("span"));
+  for (let d = 1; d <= daysIn; d++) {
+    const idx = Math.round((Date.UTC(y, m, d) - EPOCH.getTime()) / 86400000);
+    const cell = document.createElement("span");
+    cell.className = "cal-day";
+    let state = "";
+    if (idx < 0 || idx > daily.idx) cell.classList.add("is-out");
+    else if (wonOnTheDay(idx)) { cell.classList.add("is-solved"); state = ", solved"; }
+    else if (saves.has(idx)) { cell.classList.add("is-saved"); state = ", streak kept"; }
+    if (idx === daily.idx) cell.classList.add("is-today");
+    cell.textContent = saves.has(idx) && !wonOnTheDay(idx) && idx <= daily.idx ? "🧊" : String(d);
+    cell.setAttribute("aria-label", MONTHS[m] + " " + d + state);
+    grid.appendChild(cell);
+  }
+  wrap.appendChild(grid);
+  const legend = document.createElement("p");
+  legend.className = "cal-legend";
+  legend.textContent = "Orange: daily solved · 🧊: streak kept by a freeze or streak saver";
+  wrap.appendChild(legend);
+  parent.appendChild(wrap);
+}
+
+el.statsBtn.addEventListener("click", () => { calMonthOffset = 0; renderStats(); el.statsBackdrop.hidden = false; });
 el.closeStats.addEventListener("click", () => { el.statsBackdrop.hidden = true; });
 el.statsBackdrop.addEventListener("click", (e) => {
   if (e.target === el.statsBackdrop) el.statsBackdrop.hidden = true;
@@ -1753,6 +2086,7 @@ document.addEventListener("visibilitychange", () => {
   scheduleReminders();
 });
 
+buildKeyboard();
 applyBankedFreezes();
 loadProgress();
 render();

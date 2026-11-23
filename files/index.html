@@ -68,18 +68,8 @@
 
     <div class="ladder" id="ladder"></div>
 
-    <form class="input-row" id="guessForm" autocomplete="off">
-      <input
-        id="guessInput"
-        type="text"
-        inputmode="latin"
-        autocapitalize="characters"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="Next word"
-        aria-label="Type the next word in the ladder"
-      />
-      <button type="submit" id="submitBtn">Climb</button>
+    <form class="keypad" id="guessForm" autocomplete="off" aria-label="Pick a new letter">
+      <div class="keyboard" id="keyboard"></div>
     </form>
 
     <button type="button" class="play-again-btn" id="playAgainBtn" hidden>🔄 New puzzle</button>
@@ -90,11 +80,17 @@
       <span class="hint-count" id="hintCountLabel"></span>
     </div>
 
+    <div class="stuck-nudge" id="stuckNudge" hidden>
+      <span class="stuck-text">🤔 Stuck? A hint lights up the letter to change next.</span>
+      <button type="button" class="stuck-hint" id="stuckHintBtn">🎬 Get a hint</button>
+      <button type="button" class="tester-dismiss" id="stuckDismiss" aria-label="Hide this">✕</button>
+    </div>
     <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
 
     <div class="win-card" id="winCard" hidden>
       <p class="win-title" id="winTitle">Solved!</p>
       <p class="win-detail" id="winDetail"></p>
+      <p class="milestone-note" id="milestoneNote" hidden></p>
       <p class="par-route" id="parRoute" hidden></p>
       <p class="next-puzzle-note" id="nextPuzzleNote" hidden></p>
       <div class="win-actions">
@@ -191,6 +187,11 @@
       <span class="help-text">Ad privacy choices</span>
       <button class="diff-btn" id="privacyChoicesBtn">Change</button>
     </div>
+    <div class="settings-row" id="soundRow">
+      <label class="help-text" for="soundToggle">
+        <input type="checkbox" id="soundToggle" /> Sounds
+      </label>
+    </div>
     <div class="settings-row" id="freezeStatsRow">
       <span class="help-text" id="freezeStatsLabel">🧊 Streak freezes: 0 of 2</span>
       <button class="diff-btn" id="freezeStatsBtn">🎬 Get one</button>
@@ -221,6 +222,7 @@
     <p class="win-title" id="helpTitle">How to play</p>
     <p class="help-text">Turn the start word into the goal word, one letter at a time. Every step in between has to be a real word. Par is the shortest possible route — match it for the best result.</p>
     <p class="help-text">Example: CAT → COT → COG → DOG</p>
+    <p class="help-text">To climb, tap the letter you want to change in your next word, pick a new letter on the keyboard, then tap Climb. ⌫ puts the letter back.</p>
     <p class="help-text">Took a wrong turn? ↶ Undo steps back one word. It counts as a step, just like typing the word again.</p>
     <p class="help-text">Stuck? Watch a short ad for a hint. Missed a day? The next day you can watch one to keep your streak going, or bank up to two streak freezes ahead of time and they're used for you automatically. Ads are always your choice, and if one won't load, the hint or save is free.</p>
     <p class="help-text help-links"><a href="https://cowtippersgames.com/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
