@@ -101,6 +101,10 @@
         <button id="shareBtn">Share result</button>
         <button id="leaderboardBtn" class="ghost" hidden>🏆 Leaderboard</button>
       </div>
+      <div class="freeze-row" id="freezeRow" hidden>
+        <button type="button" class="freeze-btn" id="freezeBtn">🎬 Bank a streak freeze 🧊</button>
+        <p class="freeze-note" id="freezeNote"></p>
+      </div>
       <div class="tester-invite" id="testerInvite" hidden>
         <p class="tester-text">🧪 Want early access to our next game? <a id="testerLink" href="https://cowtippersgames.com/testers" target="_blank" rel="noopener noreferrer">Join our testers</a></p>
         <button type="button" class="tester-dismiss" id="testerDismiss" aria-label="Dismiss this suggestion">✕</button>
@@ -187,6 +191,10 @@
       <span class="help-text">Ad privacy choices</span>
       <button class="diff-btn" id="privacyChoicesBtn">Change</button>
     </div>
+    <div class="settings-row" id="freezeStatsRow">
+      <span class="help-text" id="freezeStatsLabel">🧊 Streak freezes: 0 of 2</span>
+      <button class="diff-btn" id="freezeStatsBtn">🎬 Get one</button>
+    </div>
     <div class="settings-row" id="testerRow" hidden>
       <span class="help-text">Help test our next game</span>
       <a class="diff-btn link-btn" id="testerRowLink" href="https://cowtippersgames.com/testers" target="_blank" rel="noopener noreferrer">Learn more</a>
@@ -214,7 +222,7 @@
     <p class="help-text">Turn the start word into the goal word, one letter at a time. Every step in between has to be a real word. Par is the shortest possible route — match it for the best result.</p>
     <p class="help-text">Example: CAT → COT → COG → DOG</p>
     <p class="help-text">Took a wrong turn? ↶ Undo steps back one word. It counts as a step, just like typing the word again.</p>
-    <p class="help-text">Stuck? Watch a short ad for a hint. Missed a day? The next day you can watch one to keep your streak going. Ads are always your choice, and if one won't load, the hint or save is free.</p>
+    <p class="help-text">Stuck? Watch a short ad for a hint. Missed a day? The next day you can watch one to keep your streak going, or bank up to two streak freezes ahead of time and they're used for you automatically. Ads are always your choice, and if one won't load, the hint or save is free.</p>
     <p class="help-text help-links"><a href="https://cowtippersgames.com/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
     <button id="closeHelp">Got it</button>
   </div>

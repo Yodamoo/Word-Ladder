@@ -373,6 +373,14 @@ button {
 .streak-let-go { height: 38px; padding: 0 14px; background: transparent; border: 1px solid var(--rail); color: var(--text-lo); }
 .streak-let-go:hover { color: var(--text-hi); }
 
+/* Optional streak freeze, inside the daily win card. */
+.freeze-row { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(242, 241, 236, 0.1); }
+.freeze-row[hidden] { display: none; }
+.freeze-btn { height: 38px; padding: 0 14px; background: transparent; border: 1px solid var(--rail); color: var(--text-hi); }
+.freeze-btn:hover { border-color: var(--text-lo); }
+.freeze-btn:disabled { opacity: 0.6; cursor: default; }
+.freeze-note { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-lo); }
+
 /* "From the makers of Rungs" card for No Hands Yet, inside the win card. */
 .promo-card {
   display: flex;

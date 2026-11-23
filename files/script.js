@@ -434,6 +434,11 @@ const el = {
   nhyPromoText: document.getElementById("nhyPromoText"),
   nhyPromoDismiss: document.getElementById("nhyPromoDismiss"),
   adTitle: document.getElementById("adTitle"),
+  freezeRow: document.getElementById("freezeRow"),
+  freezeBtn: document.getElementById("freezeBtn"),
+  freezeNote: document.getElementById("freezeNote"),
+  freezeStatsLabel: document.getElementById("freezeStatsLabel"),
+  freezeStatsBtn: document.getElementById("freezeStatsBtn"),
 };
 
 // --- Tester invite (Android only) ---
@@ -778,6 +783,81 @@ el.streakLetGoBtn.addEventListener("click", () => {
   render();
 });
 
+// --- Streak freezes ---
+// Banked ahead of time by choosing to watch an ad (up to MAX_FREEZES). When the
+// player comes back after missing days, freezes cover the gap automatically, as
+// long as there are enough for every missed day and a played day comes before
+// it. A frozen day keeps the run unbroken but doesn't add to it, same as a save.
+const FREEZE_KEY = "rungs:streakFreezes";
+const MAX_FREEZES = 2;
+
+function getFreezes() {
+  try { return Math.max(0, Math.min(MAX_FREEZES, parseInt(localStorage.getItem(FREEZE_KEY), 10) || 0)); }
+  catch (e) { return 0; }
+}
+
+function setFreezes(n) {
+  try { localStorage.setItem(FREEZE_KEY, String(Math.max(0, Math.min(MAX_FREEZES, n)))); } catch (e) { /* fine */ }
+}
+
+function applyBankedFreezes() {
+  const freezes = getFreezes();
+  if (!freezes) return;
+  const saves = getStreakSaves();
+  const kept = (i) => wonOnTheDay(i) || saves.has(i);
+  const gap = [];
+  for (let i = daily.idx - 1; i >= 0 && !kept(i); i--) gap.push(i);
+  if (!gap.length || gap.length > freezes) return;
+  const before = daily.idx - 1 - gap.length;
+  if (before < 0 || !kept(before)) return;
+  let run = 0;
+  for (let i = before; i >= 0 && kept(i); i--) if (wonOnTheDay(i)) run++;
+  if (run < 1) return;
+  gap.forEach(addStreakSave);
+  setFreezes(freezes - gap.length);
+  streakSavedNote = {
+    text: "🧊 " + (gap.length === 1 ? "A streak freeze" : gap.length + " streak freezes") +
+      " kept your " + run + "‑day streak going.",
+    until: Date.now() + 8000,
+  };
+  setTimeout(render, 8100);
+}
+
+// The optional "bank a freeze" line on the daily solved card: only once there's
+// a streak worth protecting and room in the bank.
+function renderFreezeOffer() {
+  const freezes = getFreezes();
+  const show = won && mode === "daily" && freezes < MAX_FREEZES && getStreaks().current >= 2;
+  el.freezeRow.hidden = !show;
+  if (!show) return;
+  el.freezeNote.textContent = "Keeps your streak safe if you miss a day. You have " + freezes + " of " + MAX_FREEZES + ".";
+  preloadRewardedAd(); // so the button plays straight away
+}
+
+function bankFreeze(button) {
+  if (getFreezes() >= MAX_FREEZES) { render(); return; }
+  button.disabled = true;
+  watchRewardedAd({
+    title: "Streak freeze",
+    countdown: "Banking a freeze in",
+    grant: (free) => {
+      setFreezes(getFreezes() + 1);
+      button.disabled = false;
+      render();
+      if (!el.statsBackdrop.hidden) renderStats();
+      setFeedback((free ? "No ad was available, so this one's on us. " : "") +
+        "🧊 Streak freeze banked (" + getFreezes() + " of " + MAX_FREEZES + "). It's used for you if you miss a day.");
+    },
+    notFinished: () => {
+      button.disabled = false;
+      setFeedback("The ad didn't finish, so no freeze was banked. You can try again.");
+    },
+  });
+}
+
+el.freezeBtn.addEventListener("click", () => bankFreeze(el.freezeBtn));
+el.freezeStatsBtn.addEventListener("click", () => bankFreeze(el.freezeStatsBtn));
+
 function render() {
   const puzzle = currentPuzzle();
   const GOAL = puzzle.end;
@@ -881,6 +961,7 @@ function render() {
   } else {
     el.winCard.hidden = true;
   }
+  renderFreezeOffer();
   renderTesterInvite();
   renderNhyPromo();
   renderStreakSaver();
@@ -1459,6 +1540,9 @@ function renderStats() {
   el.nameLabel.textContent = "Leaderboard name: " + (getPlayerName() || "not set");
   renderReminderSettings();
   el.testerRow.hidden = !isAndroid();
+  const freezes = getFreezes();
+  el.freezeStatsLabel.textContent = "🧊 Streak freezes: " + freezes + " of " + MAX_FREEZES;
+  el.freezeStatsBtn.hidden = freezes >= MAX_FREEZES;
 }
 
 el.statsBtn.addEventListener("click", () => { renderStats(); el.statsBackdrop.hidden = false; });
@@ -1662,12 +1746,14 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   if (dayIndex() !== daily.idx) {
     daily = dailyPuzzle();
+    applyBankedFreezes();
     if (mode === "daily") { loadProgress(); setFeedback(""); }
     render();
   }
   scheduleReminders();
 });
 
+applyBankedFreezes();
 loadProgress();
 render();
 ensureAdMobInitialized();
