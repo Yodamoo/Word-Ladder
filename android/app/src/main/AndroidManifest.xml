@@ -43,6 +43,8 @@
 
     <!-- Permissions -->
 
+    <!-- The app is locked to portrait; don't let that hide it from devices without a portrait screen. -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Added by the local-notifications plugin, but reminders are scheduled as
